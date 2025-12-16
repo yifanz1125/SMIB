@@ -31,9 +31,9 @@ kiccc = beta^2*Lf/4;
 
 
 %GFM
-kgfm = 2.5*2*pi;
+kgfm = 20*2*pi;
 m_gfm = kgfm/Ws;
-w_droop = 10*2*pi;
+w_droop = 0.5*2*pi;
 D = 1/m_gfm;
 J = 1/m_gfm/w_droop; 
 Vgfm = 1;
@@ -43,8 +43,8 @@ Pm = 1;
 Vdc_ref = 2.5;
 Y_dc = 25;  %12.5
 C_dc = Y_dc/Ws;
-Kpp = 2.5*2*pi;
-Kip = 10;
+Kpp = 2*2*pi;
+Kip = 12;
 Vvfm = 1;
 Pin = 1;
 
@@ -210,7 +210,7 @@ grid on;
 ymin=-400;
 ymax=200;
 color_code = {'black','magenta','red','black'};
-axis([-1*pi,1*pi,ymin,ymax]);
+axis([-1*pi,3*pi/2,ymin,ymax]);
 xticks(-2*pi:pi/2:2*pi);
 xticklabels({'$-2\pi$', '', '$-\pi$', '','$0$', '','$\pi$', '','$2\pi$'});
 set(gca, 'TickLabelInterpreter', 'latex');
@@ -238,8 +238,8 @@ for mm = 1 : length(ep_set_ext)
             %[~ , x_nn] = ode45(@f_forward,[0,0.1],xep-vv*perturb,odeset('RelTol',1e-5));
             case "VFM"
             figure(f1)
-            ymin=-2;
-            ymax=3;
+            ymin=-4;
+            ymax=6;
             axis([-1*pi,1*pi,ymin,ymax]);
             [~ , x_p] = ode78(@f_backward,[0,10],xep+v*perturb,odeset('RelTol',1e-5));
             [~ , x_n] = ode78(@f_backward,[0,10],xep-v*perturb,odeset('RelTol',1e-5));  
@@ -844,7 +844,7 @@ elseif system == "VFM"
 
  end
 %%
-if system == "GFM" || system == "GFL"
+if system == "GFM" 
 t_full_timedomain = [t_prefault;t_fault;t_postfault];
 delta_timedomain = [delta_pre; delta_fault; delta_post];
 omega_timedomain = [omega_pre; omega_fault; omega_post];
@@ -900,6 +900,39 @@ trange=[t_start,t_start+t_c,t_start+t_c,t_start];   thetarange=[ymin,ymin,ymax,y
 fill(trange,thetarange,[.9805 .7031 .6797], 'linestyle', 'none', 'FaceAlpha',0.5); hold on;
 ylim([ymin,ymax]);
 set(gca, 'FontSize', 14);
+
+elseif system == "GFL"
+
+t_full_timedomain = [t_prefault;t_fault;t_postfault];
+delta_timedomain = [delta_pre; delta_fault; delta_post];
+omega_timedomain = [omega_pre; omega_fault; omega_post];
+
+
+f2 = figure(2);
+set(gcf,'position',[200 558 1300 300]);
+grid on;hold on;
+plot(t_full_timedomain,delta_timedomain,'LineStyle','-','linewidth',2,'color','#0072BD');    hold on;
+yl=ylim;
+ymin=yl(1,1);
+ymax=yl(1,2);
+trange=[t_start,t_start+t_c,t_start+t_c,t_start];   thetarange=[ymin,ymin,ymax,ymax];
+fill(trange,thetarange,[.9805 .7031 .6797], 'linestyle', 'none', 'FaceAlpha',0.5); hold on;
+ylim([ymin,ymax]);
+set(gca, 'FontSize', 14);
+%omega -3
+f3 = figure(3);
+set(gcf,'position',[200 558 1300 300]);
+grid on;hold on;
+plot(t_full_timedomain,omega_timedomain,'LineStyle','-','linewidth',2,'color','#0072BD');    hold on;
+yl=ylim;
+ymin=yl(1,1);
+ymax=yl(1,2);
+trange=[t_start,t_start+t_c,t_start+t_c,t_start];   thetarange=[ymin,ymin,ymax,ymax];
+fill(trange,thetarange,[.9805 .7031 .6797], 'linestyle', 'none', 'FaceAlpha',0.5); hold on;
+ylim([ymin,ymax]);
+set(gca, 'FontSize', 14);
+
+
 
 elseif system == "VFM"
 
