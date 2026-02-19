@@ -1,12 +1,12 @@
 %% parameter
 
 
-t_end = 4;
+t_end = 0.4;
 
 %grid
 
-Xg = 1/2;
-Rg = Xg/4;
+Xg = 0.5;
+Rg = 0.05;
 Ug = 1;
 Ws = 2*pi*50; 
 Lg= Xg/Ws;
@@ -17,7 +17,7 @@ W_g = 0;
 Id = 1;
 Iq = 0; %negative q
 kp = 10*2*pi;
-ki = kp*300;
+ki = kp*100;
 w_max = Ws*100;
 w_min = -w_max;
 
@@ -41,10 +41,10 @@ Pm = 1;
 
 %VFM
 Vdc_ref = 2.5;
-Y_dc = 25;  %12.5
+Y_dc = 12.5;  %12.5
 C_dc = Y_dc/Ws;
 Kpp = 2*2*pi;
-Kip = 12;
+Kip = 20*50;
 Vvfm = 1;
 Pin = 1;
 
@@ -54,7 +54,7 @@ Pin = 1;
 global system;
 global fault_type; %line_cut voltage_sag frequency
 fault_type = "voltage_sag"; %"voltage_sag";%"line_cut";%"line_cut";
-system = "VFM";
+system = "GFL";
 model = "original";% "original"
 
 switch fault_type
@@ -65,18 +65,18 @@ switch fault_type
         R1 = 0.01;
         Xgg = (Xg - X1)*2;
         Rgg = (Rg - R1)*2;
-        t_c = 0.1;
+        t_c = 0.018;%0.086;
     case "line_cut"
     %fault line cut 
-        t_c = 0.2;
+        t_c = 0.23;
         X1 = 0.1;
-        R1 = 1e-3;
+        R1 = 0.01;
         Xgg = Xg-X1;
         Rgg = Rg - R1;
         Xg0 = Xgg/2+X1;
         Rg0 = Rgg/2+R1;
         position = 1; %fault to inf bus
-        Rf = 1e-5/(690^2/15e6);
+        Rf = 1e-5;%1e-5/(690^2/1e6);
         Im_temp = Rf*(Xgg*position*1j+Rgg*position)/(Rf + Xgg*position*1j+Rgg*position)+Xgg*(1-position)*1j+Rgg*(1-position);
         Imgf = Im_temp *(Xgg*1j+Rgg)/(Xgg*1j+Rgg+Im_temp); %(Rf//Xg*location+Xg*(1-location))//Xg
         Xg_f = imag(Imgf)+X1;
@@ -94,7 +94,7 @@ end
 try
     system;
 catch
-    system = "GFL";
+    system = "VFM";
 end
 %% SEP
 
@@ -207,8 +207,8 @@ end
 f1 = figure(1);
 hold on;
 grid on;
-ymin=-400;
-ymax=200;
+ymin=-300;
+ymax=300;
 color_code = {'black','magenta','red','black'};
 axis([-1*pi,3*pi/2,ymin,ymax]);
 xticks(-2*pi:pi/2:2*pi);
@@ -249,7 +249,7 @@ for mm = 1 : length(ep_set_ext)
         plot(x_all(:,1),x_all(:,2),'k-','linewidth',1.5);%scatter(x_all(:,1),x_all(:,2),'.');
         %plot(x_allall(:,1),x_allall(:,2),'r-','linewidth',1.5);%scatter(x_all(:,1),x_all(:,2),'.');
         p_traj= Rg*(Vvfm^2-Vvfm*Ug*cos(x_all(:,1)))/(Rg^2+Xg^2)+Xg*Vvfm*Ug*sin(x_all(:,1))/(Rg^2+Xg^2);
-        plot(p_traj-Pin,x_all(:,2),'y-','linewidth',1.5);
+        %plot(p_traj-Pin,x_all(:,2),'y-','linewidth',1.5);
     end
 end
 
@@ -286,6 +286,7 @@ switch fault_type
     id_pre = [Id;Id];
     iq_pre = [Iq;Iq];
     t_prefault = [0;0.1];
+
 
     [t_fault , x_all] = ode78(@f_fault,[t_start,t_start+t_c],[prefault_SEP(1);0],odeset('RelTol',1e-6));
     Vq_fault = (Xg*Id+Rg*Iq-Ug_fault*sin(x_all(:,1))+Id*Lg*x_all(:,2))./(1-Id*Lg*kp);
@@ -504,10 +505,13 @@ switch fault_type
 
     
     t_start = 0.1;
-    t_end = 0.4;
+    %t_end = 0.4;
     delta_pre = [prefault_SEP(1); prefault_SEP(1)];
     omega_pre = [prefault_SEP(2); prefault_SEP(2)];
     t_prefault = [0;0.1];
+
+    Id=0;
+    Iq=-1;
 
     [t_fault , x_all] = ode78(@f_fault,[t_start,t_start+t_c],[prefault_SEP(1)-Ug_fault_angle;0],odeset('RelTol',1e-6));
     Vq_fault = (Xg_f*Id+Rg_f*Iq-Ug_fault*sin(x_all(:,1))+Id*Lg_f*x_all(:,2))./(1-Id*Lg_f*kp);
@@ -518,6 +522,9 @@ switch fault_type
     omega_fault(find(omega_fault_ori>w_max))=w_max;
     omega_fault(find(omega_fault_ori<w_min))=w_min;
     delta_fault =  x_all(:,1)+Ug_fault_angle;
+
+    Id=1;
+    Iq=0;
 
     [t_postfault , x_all2] = ode78(@f_post,[t_fault(end),t_end],[delta_fault(end),x_all(end,2)],odeset('RelTol',1e-10));
     Vq_post = (Xg*Id+Rg*Iq-Ug*sin(x_all2(:,1))+Id*Lg*x_all2(:,2))./(1-Id*Lg*kp);
@@ -557,8 +564,8 @@ switch fault_type
     omega_post2(find(omega_post2<w_min))=w_min;
     delta_post2 = x_all2(:,1);
 
-    plot(delta_fault2,omega_fault_ori2,'y-','linewidth',1.5);
-    plot(delta_post2,omega_post_ori2,'y-','linewidth',1.5);
+    %plot(delta_fault2,omega_fault_ori2,'y-','linewidth',1.5);
+    %plot(delta_post2,omega_post_ori2,'y-','linewidth',1.5);
 
 
     model = "original";
@@ -823,7 +830,7 @@ elseif system == "VFM"
     V3d = jacobian(V3);
     VV3d = matlabFunction(V3d);
     x1=-2*pi:0.01*pi:2*pi;
-    x2=-8:0.1:8;
+    x2=-0.5:0.01:0.5;%-8:0.1:8;
     [y1,y2]=meshgrid(x1,x2);
     zz = zeros(length(x2),length(x1));
     zz_2 = zeros(length(x2),length(x1));
@@ -839,7 +846,7 @@ elseif system == "VFM"
     end
     V3cr = VV3(ep_set(2).xep(1),0);
     contour(y1,y2,zz,[V3cr V3cr],'r-','linewidth',1.5,"ShowText",false);
-    contour(y1,y2,zz_2,[V3cr V3cr],'m-','linewidth',1.5,"ShowText",false);
+    %contour(y1,y2,zz_2,[V3cr V3cr],'m-','linewidth',1.5,"ShowText",false);
     %contour(y1,y2,dzz,[-10 -5 0 5 10],'r:','linewidth',0.5,"ShowText",true);
 
  end

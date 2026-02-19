@@ -2,7 +2,7 @@ clc
 
 %% Fundamental parameters
 f_switching = 10e3;             % (kHz)
-Fs = f_switching*2e2;
+Fs = f_switching*100; %f_switching*2e2;
 Ts = 1/Fs;
 Tc = 1/f_switching;
 
@@ -30,12 +30,13 @@ Lg11 = Xg;
 %% Grid-following inverter1
 % PLL1
 w_pll1 = 10 *2*pi;   % (rad/s)
-w_tau1 = 1000 *2*pi;  % (rad/s)
+w_tau1 = 1500 *2*pi;  % (rad/s)
 kp_pll1= kp;
 ki_pll1= ki;
 
 % Current loop
-w_i_GFL1 = 1000 *2*pi;    % (rad/s)
+w_i_GFL1 = 4000 *2*pi;    % (rad/s)
+w_i_GFL2 = 1000 *2*pi;
 
 
 
