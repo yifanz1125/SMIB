@@ -13,7 +13,7 @@ XintGFL2=ScopeData2.signals(5).values;
 t_GFL2 = ScopeData2.time;
 
 
-t_end = 0.3;
+t_end = 0.5;
 
 T_deta=Ts*10;
 t_start2=t_sim_start+t_start;
@@ -91,11 +91,11 @@ delta_simulation = DeltaGFL(t_sim_start/T_deta+1:t_end2/T_deta+1)/pi*180;
 omega_simulation = OmegaGFL(t_sim_start/T_deta+1:t_end2/T_deta+1)./2/pi+50;
 t_simulation = t_GFL(t_sim_start/T_deta+1:t_end2/T_deta+1) -t_sim_start;
 
-t_timedomain2 = [t_fault2;t_postfault2];
-delta_timedomain2 = [delta_fault2; delta_post2];
-delta_timedomain2 = mod(delta_timedomain2+pi,2*pi)-pi;
-delta_timedomain2 = delta_timedomain2/pi*180;
-omega_timedomain2 = [ omega_fault2; omega_post2]./2/pi+50;
+% t_timedomain2 = [t_fault2;t_postfault2];
+% delta_timedomain2 = [delta_fault2; delta_post2];
+% delta_timedomain2 = mod(delta_timedomain2+pi,2*pi)-pi;
+% delta_timedomain2 = delta_timedomain2/pi*180;
+% omega_timedomain2 = [ omega_fault2; omega_post2]./2/pi+50;
 
 delta_simulation2 = DeltaGFL2(t_sim_start/T_deta+1:t_end2/T_deta+1)/pi*180;
 omega_simulation2 = OmegaGFL2(t_sim_start/T_deta+1:t_end2/T_deta+1)./2/pi+50;
@@ -111,24 +111,36 @@ clear ylim
 figure;
 set(gcf,'position',[680 558 1300 300]);
 hold on;
-xlim([0 t_end]);
+xlim([-t_start t_end-t_start]);
 grid on;    %grid minor;
-ylim([-180,180]);%ylim([-45,135]);
+ylim([-10,120]);%ylim([-45,135]);
 yl=ylim;
 ymin=yl(1,1);
 ymax=yl(1,2);
-xticks(0:0.1:t_end);
+xticks(-t_start:0.1:t_end-t_start);
 yticks(-180:45:180);%yticks(-45:45:135);
-yticklabels({'$-180$', '', '$-90$', '','$0$', '','$90$', '','$180$'});%yticklabels({'$-45$', '$0$', '$45$', '$90$','$135$'});%yticklabels({'$-180$', '', '$-90$', '','$0$', '','$90$', '','$180$'});
+yticklabels({'$-180$', '', '$-90$', '','$0$', '$45$','$90$', '$135$','$180$'});%yticklabels({'$-45$', '$0$', '$45$', '$90$','$135$'});%yticklabels({'$-180$', '', '$-90$', '','$0$', '','$90$', '','$180$'});
 set(gca, 'TickLabelInterpreter', 'latex');
-set(gca, 'FontSize', 17);
+set(gca, 'FontSize', 20);
 % during-fault area identification
-trange=[t_start,t_start+t_c,t_start+t_c,t_start];   thetarange=[ymin,ymin,ymax,ymax];
+trange=[t_start-t_start,t_start+t_c-t_start,t_start+t_c-t_start,t_start-t_start];   thetarange=[ymin,ymin,ymax,ymax];
 fill(trange,thetarange,[.9805 .7031 .6797], 'linestyle', 'none', 'FaceAlpha',0.5); hold on;
-plot(t_timedomain,delta_timedomain,'LineStyle','-','linewidth',2,'color',[0/255 0/255 0/255]);    hold on;
-plot(t_simulation,delta_simulation,'LineStyle','-','linewidth',2,'color',[0/255 95/255 255/255]); hold on;
+   hold on;
+%plot(t_simulation,delta_simulation,'LineStyle','-','linewidth',2,'color',[0/255 95/255 255/255]); hold on;
 %plot(t_timedomain2,delta_timedomain2,'LineStyle','-','linewidth',2,'color',[100/255 100/255 100/255]);    hold on;
-plot(t_simulation2,delta_simulation2,'LineStyle','-','linewidth',2,'color',[255/255 95/255 0/255]);
+plot(t_simulation2-t_start,delta_simulation2,'LineStyle','-','linewidth',2.5,'color',[0 0.4470 0.7410]);
+plot(t_timedomain-t_start,delta_timedomain,'LineStyle','--','linewidth',2.5,'color',[0.8500 0.3250 0.0980]); 
+
+
+%%
+figure;
+hold on;
+xlim([-t_start t_end-t_start]);
+vvq = (Xg*Id-Ug*sin(delta_simulation2/180*pi)+Id*Lg*omega_simulation2);
+deltauep = ep_set(2).xep(1);
+V3 = 1/ki/2*(omega_simulation2-kp*vvq).^2 - (Ug*cos(delta_simulation2/180*pi)-Ug*cos(delta_s)+Xg*Id*(delta_simulation2/180*pi-delta_s)-1/2*Id*Lg*omega_simulation2.*(deltauep-delta_simulation2/180*pi));
+
+plot(t_simulation2-t_start,V3,'LineStyle','-','linewidth',2.5,'color',[0 0.4470 0.7410]);
 
 
 %%
@@ -146,7 +158,8 @@ xticks(0:0.1:t_end);
 yticks(10:10:70);
 %yticklabels({'$10$','$40$','$50$', '$60$','$70$','$80$','$90$','$100$'});%yticklabels({'$30$','$40$','$50$', '$60$'});
 set(gca, 'TickLabelInterpreter', 'latex');
-set(gca, 'FontSize', 17);
+set(gca, 'FontName', 'Times New Roman');
+set(gca, 'FontSize', 18);
 % during-fault area identification
 trange=[t_start,t_start+t_c,t_start+t_c,t_start];   thetarange=[ymin,ymin,ymax,ymax];
 fill(trange,thetarange,[.9805 .7031 .6797], 'linestyle', 'none', 'FaceAlpha',0.5); hold on;

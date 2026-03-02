@@ -1,8 +1,9 @@
 %%
 VSC.LCL.Lf = Lf/Wbase;
-VSC.LCL.rlf = 1e-8;
+VSC.LCL.rlf = 0.5;
 VSC.LCL.Cf = Cf2/Wbase;
 VSC.LCL.rcf = 1e-8;
+VSC.LCL.rca = 1e6;
 VSC.Net.Lg = Lg;
 VSC.Net.rg = 1e-3;
 
@@ -38,6 +39,33 @@ Tf.LCL.vfilter = Tf.LCL.Zpara./Tf.LCL.Zseries;
 Tf.LCL.ifilter = Tf.LCL.Zcf./(Tf.LCL.Zcf+Tf.LCL.Zlg);
 [Tf.LCL.vfilter_mag,Tf.LCL.vfilter_ang]=Fcn_Cal_BodeMagAng(Tf.LCL.vfilter);
 [Tf.LCL.ifilter_mag,Tf.LCL.ifilter_ang]=Fcn_Cal_BodeMagAng(Tf.LCL.ifilter);
+
+
+%% GCF
+Tf.LCL.Zcf=VSC.LCL.rca./((s+1i*Wbase)*VSC.LCL.Cf*VSC.LCL.rca+1)+VSC.LCL.rcf;
+Tf.LCL.Zlg=(s+1i*Wbase)*VSC.Net.Lg+VSC.Net.rg;
+Tf.LCL.Zlf=(s+1i*Wbase)*VSC.LCL.Lf+VSC.LCL.rlf;
+Tf.LCL.Zpara=(Tf.LCL.Zcf.*Tf.LCL.Zlg)./(Tf.LCL.Zcf+Tf.LCL.Zlg);
+Tf.LCL.Zseries=Tf.LCL.Zpara+Tf.LCL.Zlf;
+Tf.LCL.Yseries=1./Tf.LCL.Zseries;
+Tf.LCL.Ygside = Tf.LCL.Yseries.*Tf.LCL.Zcf./(Tf.LCL.Zlg+Tf.LCL.Zcf);
+[Tf.LCL.Ygside_mag,Tf.LCL.Ygside_ang]=Fcn_Cal_BodeMagAng(Tf.LCL.Ygside);
+
+
+w_i_GFL1 = 2000*2*pi;
+VSC.Ctrl.CCL.kpi = w_i_GFL1*Lf/Wbase;
+VSC.Ctrl.CCL.kii = w_i_GFL1*w_i_GFL1/4*Lf/Wbase;
+Tf.CCL.PIc=VSC.Ctrl.CCL.kpi+VSC.Ctrl.CCL.kii./s;
+Tf.PWM.Gdel=exp(-s*1.5*VSC.Ctrl.Ts);
+Tf.CCL.Gcolgcf=Tf.PWM.Gdel.*Tf.CCL.PIc.*Tf.LCL.Ygside;   
+[Tf.CCL.Gcolgcf_mag,Tf.CCL.Gcolgcf_ang]=Fcn_Cal_BodeMagAng(Tf.CCL.Gcolgcf);
+
+
+
+
+
+
+
 %% paralle inductance
 VSC.LCL.r1cf = 2;
 VSC.LCL.l1cf = 0.05/Wbase;
@@ -200,6 +228,40 @@ semilogx(f_neg,Tf.LCL.ifilter_ang2(1:n_tt/2),'linewidth',1.5,'Color',[0.9290 0.6
 
 semilogx(f_neg,Tf.LCL.vfilter_ang3(1:n_tt/2),'linewidth',1.5,'Color',[0.4940 0.1840 0.5560],'LineStyle','-'); hold on;
 semilogx(f_neg,Tf.LCL.ifilter_ang3(1:n_tt/2),'linewidth',1.5,'Color',[0.4940 0.1840 0.5560],'LineStyle',':');hold on;
+set(gca,'XLim',[-fbd_H -fbd_L]);
+set(gca,'YLim',[-180 180]);
+ylabel('Phase (degree)','interpreter','latex','FontSize',12)
+xlabel('Negative Frequency (Hz)','interpreter','latex','FontSize',12)
+
+
+%%
+figure;
+set(gcf,'position',[500 100 1000 500]);
+% Positive frequency
+subplot(2,2,2)
+semilogx(f_pos,Tf.LCL.Ygside_mag(n_tt/2+1:end),'linewidth',1.5,'Color',[0 0.4470 0.7410],'LineStyle','-.'); grid on; hold on;
+semilogx(f_pos,Tf.CCL.Gcolgcf_mag(n_tt/2+1:end),'linewidth',1.5,'Color',[0 0.4470 0.7410],'LineStyle','-'); hold on;
+set(gca,'XLim',[fbd_L fbd_H]);
+
+subplot(2,2,4)
+semilogx(f_pos,Tf.LCL.Ygside_ang(n_tt/2+1:end),'linewidth',1.5,'Color',[0 0.4470 0.7410],'LineStyle','-.'); grid on;hold on;
+semilogx(f_pos,Tf.CCL.Gcolgcf_ang(n_tt/2+1:end),'linewidth',1.5,'Color',[0 0.4470 0.7410],'LineStyle','-');
+set(gca,'YLim',[-180 180]);
+set(gca,'XLim',[fbd_L fbd_H]);
+xlabel('Positive Frequency (Hz)','interpreter','latex','FontSize',12)
+
+% Negative frequency
+subplot(2,2,1)
+semilogx(f_neg,Tf.LCL.Ygside_mag(1:n_tt/2),'linewidth',1.5,'Color',[0 0.4470 0.7410],'LineStyle','-.'); grid on;hold on;
+semilogx(f_neg,Tf.CCL.Gcolgcf_mag(1:n_tt/2),'linewidth',1.5,'Color',[0 0.4470 0.7410],'LineStyle','-');
+
+set(gca,'XLim',[-fbd_H -fbd_L]);
+ylabel('Magnitude (dB)','interpreter','latex','FontSize',12)
+
+subplot(2,2,3)
+semilogx(f_neg,Tf.LCL.Ygside_ang(1:n_tt/2),'linewidth',1.5,'Color',[0 0.4470 0.7410],'LineStyle','-.'); grid on;hold on;
+semilogx(f_neg,Tf.CCL.Gcolgcf_ang(1:n_tt/2),'linewidth',1.5,'Color',[0 0.4470 0.7410],'LineStyle','-');
+
 set(gca,'XLim',[-fbd_H -fbd_L]);
 set(gca,'YLim',[-180 180]);
 ylabel('Phase (degree)','interpreter','latex','FontSize',12)

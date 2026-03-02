@@ -35,8 +35,8 @@ kp_pll1= kp;
 ki_pll1= ki;
 
 % Current loop
-w_i_GFL1 = 4000 *2*pi;    % (rad/s)
-w_i_GFL2 = 1000 *2*pi;
+w_i_GFL1 = 3000 *2*pi;    % (rad/s)
+w_i_GFL2 = 1100 *2*pi;
 
 
 
@@ -50,7 +50,7 @@ Vdc = 2.5;
 C_dc = 2.25;
 
 Id0 = Id;
-Iq01 = (Ug*cos(asin((Xg*Id+Rg*Iq)/Ug))+Id*Rg-Iq*Xg)*Cf1+Iq;
+Iq01 = 0;%(Ug*cos(asin((Xg*Id+Rg*Iq)/Ug))+Id*Rg-Iq*Xg)*Cf1+Iq;
 Iq02 = (Ug*cos(asin((Xg*Id+Rg*Iq)/Ug))+Id*Rg-Iq*Xg)*Cf2+Iq;
 
 %% Fault
