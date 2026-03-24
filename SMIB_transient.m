@@ -1,12 +1,12 @@
 %% parameter
 
 
-t_end = 0.5;
+t_end = 1;
 
 %grid
 
 Xg = 0.5;
-Rg = 0.05;
+Rg = 0.08;%0.08
 Ug = 1;
 Ws = 2*pi*50; 
 Lg= Xg/Ws;
@@ -39,12 +39,22 @@ J = 1/m_gfm/w_droop;
 Vgfm = 1;
 Pm = 1;
 
+
+%GFM with Q-V droop
+m_gfm = 0.05;
+Qref = 0;
+Vgfm = 1;
+Pm = 1;
+k_q = 0.2;
+tau_q = 1/(10*2*pi);
+
+
 %VFM
 Vdc_ref = 2.5;
-Y_dc = 12.5;  %12.5
+Y_dc = 12.5;%12.5;  %12.5
 C_dc = Y_dc/Ws;
 Kpp = 2*2*pi;
-Kip = 10;
+Kip = 15;
 Vvfm = 1;
 Pin = 1;
 
@@ -54,7 +64,7 @@ Pin = 1;
 global system;
 global fault_type; %line_cut voltage_sag frequency
 fault_type = "voltage_sag"; %"voltage_sag";%"line_cut";%"line_cut";
-system = "GFL";
+system = "VFM";  %GFMd
 model = "original";% "original"
 
 switch fault_type
@@ -65,7 +75,7 @@ switch fault_type
         R1 = 0.01;
         Xgg = (Xg - X1)*2;
         Rgg = (Rg - R1)*2;
-        t_c = 0.0182;%0.086;
+        t_c = 0.0721;%0.072;%0.086;0.0795
     case "line_cut"
     %fault line cut 
         t_c = 0.06;
@@ -236,13 +246,16 @@ for mm = 1 : length(ep_set_ext)
             [~ , x_n] = ode78(@f_backward,[0,0.4],xep-v*perturb,odeset('RelTol',1e-5));
             %[~ , x_pp] = ode45(@f_forward,[0,0.1],xep+vv*perturb,odeset('RelTol',1e-5));
             %[~ , x_nn] = ode45(@f_forward,[0,0.1],xep-vv*perturb,odeset('RelTol',1e-5));
+            case "GFMQ"
+            [~ , x_p] = ode78(@f_backward,[0,0.4],xep+v*perturb,odeset('RelTol',1e-5));
+            [~ , x_n] = ode78(@f_backward,[0,0.4],xep-v*perturb,odeset('RelTol',1e-5));
             case "VFM"
             figure(f1)
             ymin=-4;
             ymax=6;
-            axis([-1*pi,1*pi,ymin,ymax]);
-            [~ , x_p] = ode78(@f_backward,[0,5],xep+v*perturb,odeset('RelTol',1e-5));
-            [~ , x_n] = ode78(@f_backward,[0,5],xep-v*perturb,odeset('RelTol',1e-5));  
+            axis([-1*pi,3/2*pi,ymin,ymax]);
+            [~ , x_p] = ode78(@f_backward,[0,2],xep+v*perturb,odeset('RelTol',1e-5));
+            [~ , x_n] = ode78(@f_backward,[0,2],xep-v*perturb,odeset('RelTol',1e-5));  
         end
         x_all = [flip(x_n,1);x_p];
         %x_allall = [flip(x_nn,1);x_pp];
@@ -253,7 +266,7 @@ for mm = 1 : length(ep_set_ext)
     end
 end
 
-
+%%
 %nullcline
 
 % xdelta=-2*pi:0.01:2*pi;
@@ -285,6 +298,7 @@ switch fault_type
     omega_pre = [prefault_SEP(2); prefault_SEP(2)];
     id_pre = [Id;Id];
     iq_pre = [Iq;Iq];
+    xint_pre = [0; 0];
     t_prefault = [0;0.1];
 
 
@@ -297,6 +311,8 @@ switch fault_type
     omega_fault(find(omega_fault_ori>w_max))=w_max;
     omega_fault(find(omega_fault_ori<w_min))=w_min;
     delta_fault =  x_all(:,1);
+    xint_fault = x_all(:,2);
+
 
     [t_postfault , x_all2] = ode78(@f_post,[t_fault(end),t_end],x_all(end,:),odeset('RelTol',1e-10));
     Vq_post = (Xg*Id+Rg*Iq-Ug*sin(x_all2(:,1))+Id*Lg*x_all2(:,2))./(1-Id*Lg*kp);
@@ -307,6 +323,7 @@ switch fault_type
     omega_post(find(omega_post>w_max))=w_max;
     omega_post(find(omega_post<w_min))=w_min;
     delta_post = x_all2(:,1);
+    xint_post = x_all2(:,2);
 
 
 
@@ -476,7 +493,7 @@ switch fault_type
     plot(delta_post,omega_post,'b-','linewidth',1.5)
 
     elseif system == "VFM"
-        t_start = 0.1;
+        t_start = 0.2;
         delta_pre = [prefault_SEP(1); prefault_SEP(1)];
         omega_pre = [prefault_SEP(2); prefault_SEP(2)];
         id_pre = (Rg*(Vgfm-Ug*cos(delta_pre))+Xg*Ug*sin(delta_pre))/(Xg^2+Rg^2);
@@ -508,6 +525,7 @@ switch fault_type
     %t_end = 0.4;
     delta_pre = [prefault_SEP(1); prefault_SEP(1)];
     omega_pre = [prefault_SEP(2); prefault_SEP(2)];
+    xint_pre = [0; 0];
     t_prefault = [0;0.1];
 
 %     Id=0;
@@ -522,6 +540,7 @@ switch fault_type
     omega_fault(find(omega_fault_ori>w_max))=w_max;
     omega_fault(find(omega_fault_ori<w_min))=w_min;
     delta_fault =  x_all(:,1)+Ug_fault_angle;
+    xint_fault = x_all(:,2);
 
 %     Id=1;
 %     Iq=0;
@@ -535,6 +554,7 @@ switch fault_type
     omega_post(find(omega_post>w_max))=w_max;
     omega_post(find(omega_post<w_min))=w_min;
     delta_post = x_all2(:,1);
+    xint_post = x_all2(:,2);
 
     plot(prefault_SEP(1),0,'k.','MarkerSize',15);
     plot(delta_fault,omega_fault_ori,'k-','linewidth',1.5);
@@ -887,6 +907,7 @@ t_full_timedomain = [t_prefault;t_fault;t_postfault];
 delta_timedomain = [delta_pre; delta_fault; delta_post];
 omega_timedomain = [omega_pre; omega_fault; omega_post];
 
+
 t_full_timedomain_g = [t_prefault;t_fault_g;t_postfault_g];
 delta_timedomain_g = [delta_pre; delta_fault_g; delta_post_g];
 omega_timedomain_g = [omega_pre; omega_fault_g; omega_post_g];
@@ -944,6 +965,7 @@ elseif system == "GFL"
 t_full_timedomain = [t_prefault;t_fault;t_postfault];
 delta_timedomain = [delta_pre; delta_fault; delta_post];
 omega_timedomain = [omega_pre; omega_fault; omega_post];
+xint_timedomain = [xint_pre; xint_fault; xint_post];
 
 
 f2 = figure(2);
@@ -1071,6 +1093,8 @@ switch system
         dfdt = f_GFM_normal(x);
     case "VFM"
         dfdt = f_VFM_normal(x);
+    case "GFMQ"
+        dfdt = f_GFMQ_normal(x);
 end
 end
 function dfdt = f_normal(x)

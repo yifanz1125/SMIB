@@ -1,7 +1,7 @@
 clc
 
 %% Fundamental parameters            
-Fs = 1e5;
+Fs = 2e5;
 Ts = 1/Fs;
 
 %% Base values
@@ -14,7 +14,7 @@ Ybase = 1/Zbase;
 
 %% AC filter parameters
 Lf = 0.05;
-Cf = 0.01; %ideal for no Cf 
+Cf = 0.02; %ideal for no Cf 
 Lc = 1e-9;
 
 
@@ -33,7 +33,7 @@ end
 
 %% Voltage-forming inverter
 % Controller
-w_droop = 100*2*pi;   %10 1 0
+w_droop = 50*2*pi;   %10 1 0
 Vdc_ref;
 Y_dc;
 C_dc;
@@ -43,10 +43,10 @@ Vvfm;
 Pin;
 
 % Current loop
-w_i_GFM = 5000*2*pi;
+w_i_GFM = 1500*2*pi;
 
 % Voltage loop
-w_v_GFM = 600 *2*pi;
+w_v_GFM = 500 *2*pi;
 Scale_ki_v = 20;
 
 %% fault
@@ -54,7 +54,7 @@ Scale_ki_v = 20;
 switch fault_type
     case "voltage_sag"
     %voltage sag
-    t_sim_start = 10;
+    t_sim_start = 1;
     t0_sag = t_sim_start +t_start;
     dt_sag = t_c;
     v_sag= Ug_fault;

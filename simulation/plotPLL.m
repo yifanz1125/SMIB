@@ -106,6 +106,8 @@ Vabc_simulation = Vabc(t_sim_start/T_deta+1:t_end2/T_deta+1,:);
 
 Idq_simulation = Idq(t_sim_start/T_deta+1:t_end2/T_deta+1,:);
 
+XintGFL2_simulation = XintGFL2(t_sim_start/T_deta+1:t_end2/T_deta+1,:);
+
 %%
 clear ylim
 figure;
@@ -133,15 +135,57 @@ plot(t_timedomain-t_start,delta_timedomain,'LineStyle','--','linewidth',2.5,'col
 
 
 %%
-figure;
+figure(11);
 hold on;
+grid on;
+grid minor;
 xlim([-t_start t_end-t_start]);
-vvq = (Xg*Id-Ug*sin(delta_simulation2/180*pi)+Id*Lg*omega_simulation2);
+set(gcf,'position',[100 300 1000 300]);
+ylim([-0.1,1.1]);
+yl=ylim;
+ymin=yl(1,1);
+ymax=yl(1,2);
+xticks(-t_start:0.1:t_end-t_start);
+yticks([0 0.5 1]);
+yticklabels({'$0$','$0.5$','$1.0$'});
+
+% set(gca,'YMinorTick','on');
+% set(gca,'TickLength',[0.02 0.01])
+set(gca, 'TickLabelInterpreter', 'latex');
+set(gca, 'FontSize', 20);
+
+delta_simulation2_here = delta_simulation2/180*pi;
+for n = 1:length(delta_simulation2_here)-1  % Check the "continuous" property of phase angle
+    if (delta_simulation2_here(n)-delta_simulation2_here(n+1)) > 2*pi*4/5
+        delta_simulation2_here(n+1:length(delta_simulation2_here)) = delta_simulation2_here(n+1:length(delta_simulation2_here)) + 2*pi;
+    elseif (delta_simulation2_here(n)-delta_simulation2_here(n+1)) <  -2*pi*4/5
+        delta_simulation2_here(n+1:length(delta_simulation2_here)) = delta_simulation2_here(n+1:length(delta_simulation2_here)) - 2*pi;
+    end
+end
+
+omega_post_sim = ((Xg*Id-Ug*sin(delta_simulation2_here))*kp+XintGFL2_simulation)/(1-kp*Lg*Id);
 deltauep = ep_set(2).xep(1);
-V3 = 1/ki/2*(omega_simulation2-kp*vvq).^2 - (Ug*cos(delta_simulation2/180*pi)-Ug*cos(delta_s)+Xg*Id*(delta_simulation2/180*pi-delta_s)-1/2*Id*Lg*omega_simulation2.*(deltauep-delta_simulation2/180*pi));
+Vexp = 1/ki/2*(XintGFL2_simulation).^2 - (Ug*cos(delta_simulation2_here)-Ug*cos(delta_s)+Xg*Id*(delta_simulation2_here-delta_s)-1/2*Id*Lg*(omega_post_sim).*(deltauep-delta_simulation2_here));
 
-plot(t_simulation2-t_start,V3,'LineStyle','-','linewidth',2.5,'color',[0 0.4470 0.7410]);
 
+delta_timedomain_here = delta_timedomain/180*pi;
+for n = 1:length(delta_timedomain_here)-1  % Check the "continuous" property of phase angle
+    if (delta_timedomain_here(n)-delta_timedomain_here(n+1)) > 2*pi*4/5
+        delta_timedomain_here(n+1:length(delta_timedomain_here)) = delta_timedomain_here(n+1:length(delta_timedomain_here)) + 2*pi;
+    elseif (delta_timedomain_here(n)-delta_timedomain_here(n+1)) <  -2*pi*4/5
+        delta_timedomain_here(n+1:length(delta_timedomain_here)) = delta_timedomain_here(n+1:length(delta_timedomain_here)) - 2*pi;
+    end
+end
+omega_posttt = ((Xg*Id-Ug*sin(delta_timedomain_here))*kp+xint_timedomain)/(1-kp*Lg*Id);
+Vthe = 1/ki/2*(xint_timedomain).^2 - (Ug*cos(delta_timedomain_here)-Ug*cos(delta_s)+Xg*Id*(delta_timedomain_here-delta_s)-1/2*Id*Lg*(omega_posttt).*(deltauep-delta_timedomain_here));
+Vthe1 = 1/ki/2*(xint_timedomain).^2 ;
+Vthe2 = - (Ug*cos(delta_timedomain_here)-Ug*cos(delta_s)+Xg*Id*(delta_timedomain_here-delta_s));
+plot(t_simulation2-t_start,Vexp,'LineStyle','-','linewidth',2.5,'color',[0 0.4470 0.7410]);
+plot(t_timedomain-t_start,Vthe,'LineStyle','-','linewidth',2,'color',[0 0 0]);
+plot(t_timedomain-t_start,Vthe1,'LineStyle','-','linewidth',1,'color',[0.8500 0.3250 0.0980]);
+plot(t_timedomain-t_start,Vthe2,'LineStyle',':','linewidth',2.5,'color',[0 0.3250 0.0980]);
+% 
+plot([-t_start; t_end--t_start],[V3cr;V3cr],'LineStyle','-','linewidth',2.5,'color',[0 0 0]);
 
 %%
 clear ylim

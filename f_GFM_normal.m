@@ -1,6 +1,6 @@
 function dfdt = f_GFM_normal(x)
 
-    kgfm = evalin('base','kgfm');
+    m_gfm = evalin('base','m_gfm');
     w_droop = evalin('base','w_droop');
     Ug =evalin('base','Ug');
     Pm =evalin('base','Pm');
