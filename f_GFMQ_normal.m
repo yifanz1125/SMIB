@@ -1,4 +1,4 @@
-function dfdt = f_GFMQ_normal(x)
+Rfunction dfdt = f_GFMQ_normal(x)
 
     Ug =evalin('base','Ug');
     Pm =evalin('base','Pm');
@@ -27,7 +27,7 @@ function dfdt = f_GFMQ_normal(x)
     
 
   
-    dfdt(1) = m_gfm(Pm - P)*Ws;  %delta
+    dfdt(1) = m_gfm*(Pm - P)*Ws;  %delta
     dfdt(2) = k_q/tau_q*(Qref-Q)+1/tau_q*(Vref-Vgfm);  %voltage
  
     dfdt = dfdt.';

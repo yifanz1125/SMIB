@@ -31,22 +31,22 @@ kiccc = beta^2*Lf/4;
 
 
 %GFM
-kgfm = 20*2*pi;
-m_gfm = kgfm/Ws;
+kgfm = 20*2*pi; 
+m_gfm = kgfm/Ws; 
 w_droop = 0.5*2*pi;
-D = 1/m_gfm;
-J = 1/m_gfm/w_droop; 
+D = 10; %1/m_gfm;
+J = 2; 
 Vgfm = 1;
 Pm = 1;
 
 
 %GFM with Q-V droop
 m_gfm = 0.05;
-Qref = 0;
+Qref = -0.2;
 Vgfm = 1;
 Pm = 1;
-k_q = 0.2;
-tau_q = 1/(10*2*pi);
+k_q = 0.5;
+tau_q = 1/(50*2*pi);
 
 
 %VFM
@@ -54,17 +54,19 @@ Vdc_ref = 2.5;
 Y_dc = 12.5;%12.5;  %12.5
 C_dc = Y_dc/Ws;
 Kpp = 2*2*pi;
-Kip = 15;
+Kip = 15;%15
 Vvfm = 1;
 Pin = 1;
+Phi = -pi/4;
+Ilim = 2;
 
-
+y_lim = 3;
 
 %system
 global system;
 global fault_type; %line_cut voltage_sag frequency
 fault_type = "voltage_sag"; %"voltage_sag";%"line_cut";%"line_cut";
-system = "VFM";  %GFMd
+system = "VFM";  %GFMQ
 model = "original";% "original"
 
 switch fault_type
@@ -75,7 +77,7 @@ switch fault_type
         R1 = 0.01;
         Xgg = (Xg - X1)*2;
         Rgg = (Rg - R1)*2;
-        t_c = 0.0721;%0.072;%0.086;0.0795
+        t_c = 0.05;%0.072;%0.086;0.0795
     case "line_cut"
     %fault line cut 
         t_c = 0.06;
@@ -107,11 +109,26 @@ catch
     system = "VFM";
 end
 %% SEP
-
+if system == "GFMQ"
+    x=(0:0.1:1)*2*pi;
+    y=(0:0.1:1)*2;
+    n = length(x);
+    x_set = zeros(2,n^2);
+    for m = 0:(n^2 - 1)
+        index = floor(m);
+        index = mod(index,n)+1;
+        x_set(1,m+1) = x(index);
+        index = floor(m/n);
+        index = mod(index,n)+1;
+        x_set(2,m+1) = y(index);
+    end
+else
 x=(0:0.1:1)*2*pi;
 n = length(x);
 x_set = zeros(2,n);
 x_set(1,:) = x;
+end
+
 
 torralence = 1e-2; 
 mm = 1;
@@ -217,10 +234,19 @@ end
 f1 = figure(1);
 hold on;
 grid on;
+if system == "GFMQ"
+    ymin = 0;
+    ymax = 1.5;
+elseif system == "GFM"
+ymin=-0.2;
+ymax=0.2;
+else
 ymin=-300;
 ymax=300;
+end
 color_code = {'black','magenta','red','black'};
-axis([-1*pi,3*pi/2,ymin,ymax]);
+
+axis([-1*pi+prefault_SEP(1),1*pi+prefault_SEP(1),ymin,ymax]);
 xticks(-2*pi:pi/2:2*pi);
 xticklabels({'$-2\pi$', '', '$-\pi$', '','$0$', '','$\pi$', '','$2\pi$'});
 set(gca, 'TickLabelInterpreter', 'latex');
@@ -242,8 +268,8 @@ for mm = 1 : length(ep_set_ext)
             [~ , x_p] = ode78(@f_backward,[0,2],xep+v*perturb,odeset('RelTol',1e-5));
             [~ , x_n] = ode78(@f_backward,[0,2],xep-v*perturb,odeset('RelTol',1e-5));
             case "GFM"
-            [~ , x_p] = ode78(@f_backward,[0,0.4],xep+v*perturb,odeset('RelTol',1e-5));
-            [~ , x_n] = ode78(@f_backward,[0,0.4],xep-v*perturb,odeset('RelTol',1e-5));
+            [~ , x_p] = ode78(@f_backward,[0,0.8],xep+v*perturb,odeset('RelTol',1e-5));
+            [~ , x_n] = ode78(@f_backward,[0,0.8],xep-v*perturb,odeset('RelTol',1e-5));
             %[~ , x_pp] = ode45(@f_forward,[0,0.1],xep+vv*perturb,odeset('RelTol',1e-5));
             %[~ , x_nn] = ode45(@f_forward,[0,0.1],xep-vv*perturb,odeset('RelTol',1e-5));
             case "GFMQ"
@@ -261,8 +287,8 @@ for mm = 1 : length(ep_set_ext)
         %x_allall = [flip(x_nn,1);x_pp];
         plot(x_all(:,1),x_all(:,2),'k-','linewidth',1.5);%scatter(x_all(:,1),x_all(:,2),'.');
         %plot(x_allall(:,1),x_allall(:,2),'r-','linewidth',1.5);%scatter(x_all(:,1),x_all(:,2),'.');
-        p_traj= Rg*(Vvfm^2-Vvfm*Ug*cos(x_all(:,1)))/(Rg^2+Xg^2)+Xg*Vvfm*Ug*sin(x_all(:,1))/(Rg^2+Xg^2);
-        %plot(p_traj-Pin,x_all(:,2),'y-','linewidth',1.5);
+        % p_traj= Rg*(Vvfm^2-Vvfm*Ug*cos(x_all(:,1)))/(Rg^2+Xg^2)+Xg*Vvfm*Ug*sin(x_all(:,1))/(Rg^2+Xg^2);
+        % plot(p_traj-Pin,x_all(:,2),'y-','linewidth',1.5);
     end
 end
 
@@ -480,7 +506,7 @@ switch fault_type
 
     figure(f1)
 
-    plot(delta_fault,omega_fault,'r-','linewidth',1.5);
+    %plot(delta_fault,omega_fault,'r-','linewidth',1.5);
     %plot(x_all(:,1),x_all(:,2),'m-','linewidth',1.5);
 %     plot(x_all2(1,1),omega_post(1),'k.','MarkerSize',15);
 %     plot(x_all(1,1),omega_fault(1),'k.','MarkerSize',15);
@@ -488,9 +514,9 @@ switch fault_type
 %     plot(x_all2(:,1),omega_post,'y-','linewidth',1.5);
 %     plot(x_all2(:,1),x_all2(:,2),'m-','linewidth',1.5);
 
-    plot(delta_post(1),omega_post(1),'k.','MarkerSize',15);
-    plot(delta_fault(1),omega_fault(1),'k.','MarkerSize',15);
-    plot(delta_post,omega_post,'b-','linewidth',1.5)
+   % plot(delta_post(1),omega_post(1),'k.','MarkerSize',15);
+   % plot(delta_fault(1),omega_fault(1),'k.','MarkerSize',15);
+   % plot(delta_post,omega_post,'b-','linewidth',1.5)
 
     elseif system == "VFM"
         t_start = 0.2;
@@ -839,42 +865,76 @@ contour(y1,y2,zz,[V3cr V3cr],'r-','linewidth',1.5,"ShowText",false);
 elseif system == "VFM"
 
     % energy function 1
-    syms deltax yx;
-    delta_s = prefault_SEP(1);
-    M = C_dc/2*Kip;
-    ppp = Rg*(Vvfm^2-Vvfm*Ug*cos(deltax))/(Rg^2+Xg^2)+Xg*Vvfm*Ug*sin(deltax)/(Rg^2+Xg^2);
-    V1 = - Pin*(deltax-delta_s) + Rg*(Vvfm^2*(deltax-delta_s)-Vvfm*Ug*(sin(deltax)-sin(delta_s)))/(Rg^2+Xg^2)-Xg*Vvfm*Ug*(cos(deltax)-cos(delta_s))/(Rg^2+Xg^2) + 1/2*M*(Kip*yx+Kpp*(Pin - ppp))^2;
-    V1=vpa(V1);
-    VV1=matlabFunction(V1);
-    V1d = jacobian(V1);
-    VV1d = matlabFunction(V1d);
-    
-    x1=-2*pi:0.01*pi:2*pi;
-    x2=-4:0.02:6;%-8:0.1:8;
-    [y1,y2]=meshgrid(x1,x2);
-    zz = zeros(length(x2),length(x1));
-    dzz = zeros(length(x2),length(x1));
-    for a = 1: length(x1)
-        for b = 1: length(x2)
-            V = VV1(y1(b,a), y2(b,a));
-            dV = VV1d(y1(b,a), y2(b,a))*f_GFL([y1(b,a) y2(b,a)]);
-            zz(b,a) = V;
-            dzz(b,a)=dV;
-        end
-    end
-    Vcr1 = VV1(ep_set(2).xep(1),0);
-    contour(y1,y2,zz,[Vcr1 Vcr1],'b-','linewidth',1,"ShowText",false);
+    % syms deltax yx;
+    % delta_s = prefault_SEP(1);
+    % M = C_dc/2*Kip;
+    % ppp = Rg*(Vvfm^2-Vvfm*Ug*cos(deltax))/(Rg^2+Xg^2)+Xg*Vvfm*Ug*sin(deltax)/(Rg^2+Xg^2);
+    % V1 = - Pin*(deltax-delta_s) + Rg*(Vvfm^2*(deltax-delta_s)-Vvfm*Ug*(sin(deltax)-sin(delta_s)))/(Rg^2+Xg^2)-Xg*Vvfm*Ug*(cos(deltax)-cos(delta_s))/(Rg^2+Xg^2) + 1/2*M*(Kip*yx+Kpp*(Pin - ppp))^2;
+    % V1=vpa(V1);
+    % VV1=matlabFunction(V1);
+    % V1d = jacobian(V1);
+    % VV1d = matlabFunction(V1d);
+    % 
+    % x1=-2*pi:0.01*pi:2*pi;
+    % x2=-4:0.02:6;%-8:0.1:8;
+    % [y1,y2]=meshgrid(x1,x2);
+    % zz = zeros(length(x2),length(x1));
+    % dzz = zeros(length(x2),length(x1));
+    % for a = 1: length(x1)
+    %     for b = 1: length(x2)
+    %         V = VV1(y1(b,a), y2(b,a));
+    %         dV = VV1d(y1(b,a), y2(b,a))*f_GFL([y1(b,a) y2(b,a)]);
+    %         zz(b,a) = V;
+    %         dzz(b,a)=dV;
+    %     end
+    % end
+    % Vcr1 = VV1(ep_set(2).xep(1),0);
+    % contour(y1,y2,zz,[Vcr1 Vcr1],'b-','linewidth',1,"ShowText",false);
 %     Vcr2 = VV1(acos(Id*Lg*ki/Ug/kp),0);
 %     contour(y1,y2,zz,[Vcr2 Vcr2],'b-','linewidth',1.5,"ShowText",false);
 
 
-    % energy function 3
+    % % energy function 3
+    % syms deltax yx;
+    % delta_s = prefault_SEP(1);
+    % deltauep = ep_set(2).xep(1);
+    % %V3 = 1/ki/2*(omegax-kp*vvq)^2 - (Ug*cos(deltax)-Ug*cos(delta_s)+Xg*Id*(deltax-delta_s)+1/2*Id*Lg*omegax*(deltax-delta_s));%
+    % V3 = C_dc/4*Kip*yx^2 - Pin*(deltax-delta_s) + Rg*(Vvfm^2*(deltax-delta_s)-Vvfm*Ug*(sin(deltax)-sin(delta_s)))/(Rg^2+Xg^2)-Xg*Vvfm*Ug*(cos(deltax)-cos(delta_s))/(Rg^2+Xg^2) ;%- C_dc/2*Kpp*yx*(Rg*(Vvfm^2-Vvfm*Ug*cos(deltax))/(Rg^2+Xg^2)+Xg*Vvfm*Ug*sin(deltax)/(Rg^2+Xg^2) - Pin)/2;%
+    % V3_2 = V3-C_dc/2*Kpp*yx*(Rg*(Vvfm^2-Vvfm*Ug*cos(deltax))/(Rg^2+Xg^2)+Xg*Vvfm*Ug*sin(deltax)/(Rg^2+Xg^2) - Pin)/2;
+    % V3=vpa(V3);
+    % VV3=matlabFunction(V3);
+    % VV3_2=matlabFunction(V3_2);
+    % V3d = jacobian(V3);
+    % VV3d = matlabFunction(V3d);
+    % x1=-2*pi:0.01*pi:2*pi;
+    % x2=-4:0.02:6;%-8:0.1:8;
+    % [y1,y2]=meshgrid(x1,x2);
+    % zz = zeros(length(x2),length(x1));
+    % zz_2 = zeros(length(x2),length(x1));
+    % dzz = zeros(length(x2),length(x1));
+    % for a = 1: length(x1)
+    %     for b = 1: length(x2)
+    %         V = VV3(y1(b,a), y2(b,a));
+    %         dV = VV3d(y1(b,a), y2(b,a))*f_VFM_normal([y1(b,a) y2(b,a)]);
+    %         zz(b,a) = V;
+    %         zz_2(b,a) = VV3_2(y1(b,a), y2(b,a));
+    %         dzz(b,a)=dV;
+    %     end
+    % end
+    % V3cr = VV3(ep_set(2).xep(1),0);
+    % contour(y1,y2,zz,[V3cr V3cr],'b-','linewidth',1.5,"ShowText",false);
+    % % contour(y1,y2,zz_2,[V3cr V3cr],'m-','linewidth',1.5,"ShowText",false);
+    % % contour(y1,y2,dzz,[-10 -5 0 5 10],'r:','linewidth',0.5,"ShowText",true);
+
+
+
+    % energy function 4
     syms deltax yx;
     delta_s = prefault_SEP(1);
     deltauep = ep_set(2).xep(1);
     %V3 = 1/ki/2*(omegax-kp*vvq)^2 - (Ug*cos(deltax)-Ug*cos(delta_s)+Xg*Id*(deltax-delta_s)+1/2*Id*Lg*omegax*(deltax-delta_s));%
     V3 = C_dc/4*Kip*yx^2 - Pin*(deltax-delta_s) + Rg*(Vvfm^2*(deltax-delta_s)-Vvfm*Ug*(sin(deltax)-sin(delta_s)))/(Rg^2+Xg^2)-Xg*Vvfm*Ug*(cos(deltax)-cos(delta_s))/(Rg^2+Xg^2) ;%- C_dc/2*Kpp*yx*(Rg*(Vvfm^2-Vvfm*Ug*cos(deltax))/(Rg^2+Xg^2)+Xg*Vvfm*Ug*sin(deltax)/(Rg^2+Xg^2) - Pin)/2;%
-    V3_2 = V3-C_dc/2*Kpp*yx*(Rg*(Vvfm^2-Vvfm*Ug*cos(deltax))/(Rg^2+Xg^2)+Xg*Vvfm*Ug*sin(deltax)/(Rg^2+Xg^2) - Pin)/2;
+    V3_2 = C_dc/4*Kip*yx^2 - Pin*(deltax-delta_s) + Ilim*Ug*sin(deltax+Phi) - Ilim*Ug*sin(delta_s+Phi) + Ilim^2*Rg*(deltax-delta_s);
     V3=vpa(V3);
     VV3=matlabFunction(V3);
     VV3_2=matlabFunction(V3_2);
@@ -895,10 +955,15 @@ elseif system == "VFM"
             dzz(b,a)=dV;
         end
     end
-    V3cr = VV3(ep_set(2).xep(1),0);
-    contour(y1,y2,zz,[V3cr V3cr],'r-','linewidth',1.5,"ShowText",false);
-    %contour(y1,y2,zz_2,[V3cr V3cr],'m-','linewidth',1.5,"ShowText",false);
-    %contour(y1,y2,dzz,[-10 -5 0 5 10],'r:','linewidth',0.5,"ShowText",true);
+    V3cr = VV3_2(ep_set(2).xep(1),0);
+    contour(y1,y2,zz_2,[V3cr V3cr],'r-','linewidth',1.5,"ShowText",false);
+    deltacc = acos((Vvfm^2+Ug^2-Ilim^2*(Xg^2+Rg^2))/(2*Vvfm*Ug));
+    V32cr = VV3_2(deltacc,0);
+    V322cr = VV3(deltacc,0);
+    contour(y1,y2,zz,[V3cr-V32cr+V322cr V3cr-V32cr+V322cr],'y-','linewidth',1.5,"ShowText",false);
+
+    contour(y1,y2,zz_2,[V3cr V3cr],'y-','linewidth',1.5,"ShowText",false);
+    %contour(y1,y2,dzz,[-10 -5 0 5 10],'y:','linewidth',0.5,"ShowText",true);
 
  end
 %%
@@ -1092,7 +1157,7 @@ switch system
     case "GFM"
         dfdt = f_GFM_normal(x);
     case "VFM"
-        dfdt = f_VFM_normal(x);
+        dfdt = f_VFM_normal_cl(x);%%
     case "GFMQ"
         dfdt = f_GFMQ_normal(x);
 end
@@ -1146,7 +1211,7 @@ global system;
         case "GFM"
           dfdt = f_GFM_fault(x);
         case "VFM"
-          dfdt = f_VFM_fault(x);
+          dfdt = f_VFM_fault_cl(x);%
     end
 end
 function dfdt = f_fault_g(t,x)
@@ -1187,7 +1252,7 @@ global system;
         case "GFM"
           dfdt = f_GFM_normal(x);
         case "VFM"
-          dfdt = f_VFM_normal(x);
+          dfdt = f_VFM_normal_clvl(x); %
     end
 end
 function dfdt = f_post_g(t,x)
@@ -1229,5 +1294,7 @@ global system;
           dfdt = f_GFM_prefault(x);
         case "VFM"
           dfdt = f_VFM_prefault(x);
+        case "GFMQ"
+          dfdt = f_GFMQ_normal(x);
     end
 end
