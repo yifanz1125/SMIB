@@ -7,10 +7,11 @@ Pv = Rg*(Vvfm^2 - Vvfm*Ug*cos(delta))./(Rg^2+Xg^2) ...
 Phi = -pi/4;
 Ilim = 2;
 
-Pi = sqrt((Vvfm^2+Ug^2-2*Vvfm*Ug*cos(delta))/Ilim^2 - Xg^2) ...
-   ./(Vvfm^2+Ug^2-2*Vvfm*Ug*cos(delta)) .* Ilim^2 .* (Vvfm*Ug*cos(delta)-Ug^2) ...
-   + Xg./(Vvfm^2+Ug^2-2*Vvfm*Ug*cos(delta)) .* Ilim^2 .* Vvfm*Ug.*sin(delta) ...
-   + Ilim^2*Rg;
+Den = Vvfm^2 + Ug^2 - 2*Vvfm*Ug*cos(delta);
+Xvar = sqrt(Den/Ilim^2 - Rg^2);
+
+Pi = Rg ./ Den .* Ilim^2 .* (Vvfm^2 - Vvfm*Ug*cos(delta)) ...
+   + Xvar ./ Den .* Ilim^2 .* Vvfm*Ug.*sin(delta);
 
 Iv = sqrt((Vvfm^2 + Ug^2 - 2*Vvfm*Ug*cos(delta))./(Xg^2+Rg^2));
 
@@ -77,11 +78,9 @@ VV3 = @(delta_val, y_val) ...
 
 % ------- Pi 的函数句柄（供数值积分） -------
 Pi_fun = @(x) ...
-    sqrt((Vvfm^2+Ug^2-2*Vvfm*Ug*cos(x))/Ilim^2 - Xg^2) ...
-    ./ (Vvfm^2+Ug^2-2*Vvfm*Ug*cos(x)) .* Ilim^2 .* (Vvfm*Ug*cos(x)-Ug^2) ...
-    + Xg ./ (Vvfm^2+Ug^2-2*Vvfm*Ug*cos(x)) .* Ilim^2 .* Vvfm*Ug .* sin(x) ...
-    + Ilim^2*Rg;
-
+    Rg ./ (Vvfm^2 + Ug^2 - 2*Vvfm*Ug*cos(x)) .* Ilim^2 .* (Vvfm^2 - Vvfm*Ug*cos(x)) ...
+    + sqrt((Vvfm^2 + Ug^2 - 2*Vvfm*Ug*cos(x))/Ilim^2 - Rg^2) ...
+    ./ (Vvfm^2 + Ug^2 - 2*Vvfm*Ug*cos(x)) .* Ilim^2 .* Vvfm*Ug.*sin(x);
 % ------- 拼接常数 -------
 % 要求：V3_2(deltacc,0) = V3(deltacc,0)
 % 因为积分上限=下限时积分为0
@@ -95,7 +94,7 @@ VV3_2 = @(delta_val, y_val) ...
     + integral(Pi_fun, deltacc, delta_val, 'ArrayValued', true) ...
     + Cmatch;
 
-%% ==========================================
+%% =================================
 dx = 0.01*pi;
 x1 = unique(sort([-deltacc:dx:pi, deltacc]));
 x2 = -4:0.02:6;
@@ -156,7 +155,7 @@ surf(y1, y2, shadow, ...
 y_sep = 0;
 y_uep = 0;
 
-% SEP
+% --- SEP ---
 if delta_s <= deltacc
     z_sep = VV3(delta_s, y_sep);
 elseif delta_s <= pi
@@ -165,21 +164,22 @@ else
     z_sep = NaN;
 end
 
-% 切换系统 UEP
-if delta_uep_cl <= deltacc
-    z_uep_cl = VV3(delta_uep_cl, y_uep);
-elseif delta_uep_cl <= pi
-    z_uep_cl = VV3_2(delta_uep_cl, y_uep);
+% --- VA 模型 UEP ---
+if delta_uep_va <= deltacc
+    z_uep_va = VV3(delta_uep_va, y_uep);
+elseif delta_uep_va <= pi
+    z_uep_va = VV3_2(delta_uep_va, y_uep);
 else
-    z_uep_cl = NaN;
+    z_uep_va = NaN;
 end
 
 % ===================== 标出 SEP / UEP =====================
+
 plot3(delta_s, y_sep, z_sep, 'ko', ...
     'MarkerSize', 8, ...
     'MarkerFaceColor', 'g');
 
-plot3(delta_uep_cl, y_uep, z_uep_cl, 'ko', ...
+plot3(delta_uep_va, y_uep, z_uep_va, 'ko', ...
     'MarkerSize', 8, ...
     'MarkerFaceColor', 'r');
 
@@ -188,7 +188,7 @@ text(delta_s, y_sep, z_sep, '  SEP', ...
     'Color', 'k', ...
     'FontWeight', 'bold');
 
-text(delta_uep_cl, y_uep, z_uep_cl, '  UEP_{cl}', ...
+text(delta_uep_va, y_uep, z_uep_va, '  UEP', ...
     'FontSize', 12, ...
     'Color', 'k', ...
     'FontWeight', 'bold');
@@ -198,21 +198,16 @@ text(delta_uep_cl, y_uep, z_uep_cl, '  UEP_{cl}', ...
 
 y_cut = 0;
 
-% 这里用切换系统 UEP 的 delta
-% 要求你前面的脚本里已经算出了 delta_uep_cl
-if delta_uep_cl <= deltacc
-    Vcut = VV3(delta_uep_cl, y_cut);
-elseif delta_uep_cl <= pi
-    Vcut = VV3_2(delta_uep_cl, y_cut);
+if delta_uep_va <= deltacc
+    Vcut = VV3(delta_uep_va, y_cut);
+elseif delta_uep_va <= pi
+    Vcut = VV3_2(delta_uep_va, y_cut);
 else
     Vcut = NaN;
 end
-
-%% ===================== 在三维图中画灰色切面 =====================
-
-% 当前图就是刚才的三维图；若担心不是当前图，可以先记录句柄：
-% f_energy = gcf; figure(f_energy);
-
+% 
+% %% ===================== 在三维图中画灰色切面 =====================
+% 
 x_plane = [min(x1), max(x1)];
 y_plane = [min(x2), max(x2)];
 [Xp, Yp] = meshgrid(x_plane, y_plane);
@@ -223,19 +218,17 @@ surf(Xp, Yp, Zp, ...
     'FaceAlpha', 0.28, ...
     'EdgeColor', 'none');
 
-% 可选：在三维图里再画一条交线提示
+% 交线（可选）
 contour3(y1, y2, zz_total, [Vcut Vcut], ...
     'k-', 'LineWidth', 1.5);
-
-%% ===================== 在 f1 里画 level set =====================
-
+% %% ===================== 在 f1 里画 level set =====================
+% 
 figure(f1);
 hold on;
 
-% 和 f1 一致的二维网格范围
 x1_ls = -deltacc:0.01*pi:pi;
-x2_ls = ylim;   % 先取当前图范围
-x2_ls = linspace(x2_ls(1), x2_ls(2), 400);
+yl_tmp = ylim;
+x2_ls = linspace(yl_tmp(1), yl_tmp(2), 400);
 
 [DL, YL] = meshgrid(x1_ls, x2_ls);
 Vlevel = NaN(size(DL));
@@ -255,6 +248,6 @@ for a = 1:length(x1_ls)
     end
 end
 
-% 再把关键等值线强调一遍
 contour(DL, YL, Vlevel, [Vcut Vcut], ...
-    'Color', [0.25 0.25 0.25], 'LineWidth', 2.2);
+    'Color', [0.25 0.25 0.25], ...
+    'LineWidth', 2.2);

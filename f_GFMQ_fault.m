@@ -1,6 +1,6 @@
-function dfdt = f_GFMQ_normal(x)
+function dfdt = f_GFMQ_fault(x)
 
-    Ug =evalin('base','Ug');
+    Ug =evalin('base','Ug_fault');
     Pm =evalin('base','Pm');
 
     m_gfm = evalin('base','m_gfm');
@@ -29,16 +29,14 @@ function dfdt = f_GFMQ_normal(x)
     Q = Xg*(Vgfm^2 - Vgfm*Ug*cos(delta))/(Rg^2+Xg^2) - Rg*Vgfm*Ug*sin(delta)/(Rg^2+Xg^2); 
     
 
-
-
   
     dfdt(1) = m_gfm*(Pm - P)*Ws;  %delta
-
     if Vgfm<=0 && (k_q/tau_q*(Qref-Q)+1/tau_q*(Vref-Vgfm))<=0
         dfdt(2) = 0;
     else
         dfdt(2) = k_q/tau_q*(Qref-Q)+1/tau_q*(Vref-Vgfm);  %voltage
     end
+ 
     dfdt = dfdt.';
 
     end

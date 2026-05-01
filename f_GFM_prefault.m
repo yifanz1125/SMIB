@@ -1,10 +1,12 @@
 function dfdt = f_GFM_prefault(x)
 
-    kgfm = evalin('base','kgfm');
-    w_droop = evalin('base','w_droop');
+    %kgfm = evalin('base','kgfm');
+    %w_droop = evalin('base','w_droop');
     Ug =evalin('base','Ug');
     Pm =evalin('base','Pm');
+    J = evalin('base','J');
         
+    D = evalin('base','D');
     kp = evalin('base','kp');
     ki = evalin('base','ki');
 
@@ -26,8 +28,8 @@ function dfdt = f_GFM_prefault(x)
    
 
 
-    dfdt(1) = omega;
-    dfdt(2) = (kgfm*(Pm-P)-omega)*w_droop;
+    dfdt(1) = omega*Ws;
+    dfdt(2) = ((Pm-P)-D*omega)/J;
  
     dfdt = dfdt.';
 
