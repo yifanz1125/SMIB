@@ -75,7 +75,7 @@ switch fault_type
         R1 = 0.01;
         Xgg = (Xg - X1)*2;
         Rgg = (Rg - R1)*2;
-        t_c = 0.0721;%0.072;%0.086;0.0795
+        t_c = 0.0616;%0.0721;%0.086;0.0795
     case "line_cut"
     %fault line cut 
         t_c = 0.06;
@@ -841,7 +841,7 @@ elseif system == "VFM"
     % energy function 1
     syms deltax yx;
     delta_s = prefault_SEP(1);
-    M = C_dc/2*Kip;
+    M = C_dc/2/Kip;
     ppp = Rg*(Vvfm^2-Vvfm*Ug*cos(deltax))/(Rg^2+Xg^2)+Xg*Vvfm*Ug*sin(deltax)/(Rg^2+Xg^2);
     V1 = - Pin*(deltax-delta_s) + Rg*(Vvfm^2*(deltax-delta_s)-Vvfm*Ug*(sin(deltax)-sin(delta_s)))/(Rg^2+Xg^2)-Xg*Vvfm*Ug*(cos(deltax)-cos(delta_s))/(Rg^2+Xg^2) + 1/2*M*(Kip*yx+Kpp*(Pin - ppp))^2;
     V1=vpa(V1);
@@ -862,8 +862,25 @@ elseif system == "VFM"
             dzz(b,a)=dV;
         end
     end
+    delta_crit = atan(-Xg/Rg);
+
+    xline(delta_crit,'y-','LineWidth',1.5);
+    xline(delta_crit+pi,'y-','LineWidth',1.5);
+    xline(delta_crit-pi,'y-','LineWidth',1.5);
+
     Vcr1 = VV1(ep_set(2).xep(1),0);
+    delta_fix = delta_crit + pi;
+
+    omega_range = -4:0.01:6;   % 搜索范围
+    V_vals = zeros(size(omega_range));
+    
+    for i = 1:length(omega_range)
+        V_vals(i) = VV1(delta_fix, omega_range(i));
+    end
+    
+    Vcr11 = min(V_vals);
     contour(y1,y2,zz,[Vcr1 Vcr1],'b-','linewidth',1,"ShowText",false);
+    contour(y1,y2,zz,[Vcr11 Vcr11],'b-','linewidth',1,"ShowText",false);
 %     Vcr2 = VV1(acos(Id*Lg*ki/Ug/kp),0);
 %     contour(y1,y2,zz,[Vcr2 Vcr2],'b-','linewidth',1.5,"ShowText",false);
 

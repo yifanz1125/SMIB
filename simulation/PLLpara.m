@@ -35,7 +35,7 @@ kp_pll1= kp;
 ki_pll1= ki;
 
 % Current loop
-w_i_GFL1 = 3000 *2*pi;    % (rad/s)
+w_i_GFL1 = 1100 *2*pi;    % (rad/s)
 w_i_GFL2 = 1100 *2*pi;
 
 

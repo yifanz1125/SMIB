@@ -16,6 +16,17 @@ function dfdt = f_VFM_prefault(x)
     C_dc = evalin('base','C_dc');
 
 
+    fault_type = evalin('base','fault_type');
+
+    if fault_type == "line_cut"
+        Xg0 = evalin('base','Xg0');
+        Rg0 = evalin('base','Rg0');
+        Xg = Xg0;
+        Rg = Rg0;
+        Lg = Xg/Ws;
+    end
+
+
     delta = x(1);
     y = x(2);  %voltage
     
