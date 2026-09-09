@@ -1,12 +1,12 @@
 %% parameter
 
 
-t_end = 0.5;
+t_end = 2;
 
 %grid
 
-Xg = 0.5;
-Rg = 0.05;%0.08
+Xg = 0.536;
+Rg = 0.04;%0.08
 Ug = 1;
 Ws = 2*pi*50; 
 Lg= Xg/Ws;
@@ -14,13 +14,14 @@ W_g = 0;
 
 
 %GFM
-kgfm = 20*2*pi; 
-m_gfm = kgfm/Ws; 
-w_droop = 0.5*2*pi;
-D = 10; %1/m_gfm;
-J = 2; 
+m_gfm = 0.05; 
+w_droop = 0.8*2*pi;
+1/(w_droop*m_gfm)
+D = 15; %1/m_gfm;
+J = 3;  %
 Vgfm = 1;
 Pm = 1;
+Kvi = 0.5;
 
 
 %VFM
@@ -32,7 +33,18 @@ Kip = 15;%15
 Vvfm = 1;
 Pin = 1;
 Phi = -pi/4;
-Ilim = 2;
+Ilim = 1.5;
+
+kq = 0;
+
+fsep = @(delta) Rg*(Vgfm^2 - Vgfm*Ug*cos(delta))/(Rg^2 + Xg^2) ...
+           + Xg*Vgfm*Ug*sin(delta)/(Rg^2 + Xg^2) ...
+           - Pm;
+
+deltas = fsolve(fsep, 0);
+
+Qref1 = Xg*(Vgfm^2 - Vgfm*Ug*cos(deltas))/(Rg^2+Xg^2) ...
+      - Rg*Vgfm*Ug*sin(deltas)/(Rg^2+Xg^2);
 
 
 
@@ -41,8 +53,8 @@ global system;
 global fault_type; %line_cut voltage_sag frequency
 global limit_type
 fault_type = "voltage_sag"; %"voltage_sag";%"line_cut";%"line_cut";
-limit_type = "VA";   %"cir"   "VA"
-system = "VFM";  %GFMQ   VOC
+limit_type = "VI";   %"cir"   "VA" "VI"  "VA+QV"
+system = "GFM";  %GFMQ   VOC
 model = "original";% "original"
 
 switch fault_type
@@ -53,7 +65,7 @@ switch fault_type
         R1 = 0.01;
         Xgg = (Xg - X1)*2;
         Rgg = (Rg - R1)*2;
-        t_c = 0.035;%0.072;%0.086;0.0795
+        t_c = 0.13;%0.072;%0.086;0.0795
     case "line_cut"
     %fault line cut 
         t_c = 0.06;
@@ -224,8 +236,8 @@ for mm = 1 : length(ep_set_ext)
         perturb = 1e-3;
         switch system
             case "GFM"
-            [~ , x_p] = ode78(@f_backward,[0,1],xep+v*perturb,odeset('RelTol',1e-5));
-            [~ , x_n] = ode78(@f_backward,[0,1],xep-v*perturb,odeset('RelTol',1e-5)); 
+            [~ , x_p] = ode78(@f_backward,[0,1],xep+v*perturb,odeset('RelTol',1e-10));
+            [~ , x_n] = ode78(@f_backward,[0,1],xep-v*perturb,odeset('RelTol',1e-10)); 
             case "VFM"
             [~ , x_p] = ode78(@f_backward,[0,2],xep+v*perturb,odeset('RelTol',1e-5));
             [~ , x_n] = ode78(@f_backward,[0,2],xep-v*perturb,odeset('RelTol',1e-5)); 
@@ -257,10 +269,10 @@ switch fault_type
 
     figure(f1)
 
-    plot(delta_fault,omega_fault,'r-','linewidth',1.5);
-    plot(delta_post(1),omega_post(1),'k.','MarkerSize',15);
-    plot(delta_fault(1),omega_fault(1),'k.','MarkerSize',15);
-    plot(delta_post,omega_post,'b-','linewidth',1.5)
+    % plot(delta_fault,omega_fault,'r-','linewidth',1.5);
+    % plot(delta_post(1),omega_post(1),'k.','MarkerSize',15);
+    % plot(delta_fault(1),omega_fault(1),'k.','MarkerSize',15);
+    % plot(delta_post,omega_post,'b-','linewidth',1.5)
 
     
     elseif system == "VFM"
@@ -290,291 +302,962 @@ switch fault_type
 
 
     end
- end
-%% current limit
-if limit_type == "cir"
+end
 
-%%  ======= circle limit ==========
-% ===== 1. 找 equilibrium =====
-torralence = 1e-2;
-mm = 1;
-ep_set_cl = [];
-
-options = optimoptions('fsolve',...
-    'FunctionTolerance',1e-10,...
-    'MaxIterations',100000,...
-    'OptimalityTolerance',1e-10,...
-    'Display','off');
-
-for n = 1:length(x_set(1,:))
-    xep0 = x_set(:,n);
-
-    [xep,ferr,exitflag] = fsolve(@f_VFM_normal_cl_circle, xep0, options);
-
-    if exitflag > 0 && maxabs(ferr) < torralence
-        if isnewxep(ep_set_cl,xep,torralence)
-
-            % 数值 Jacobian
-            A = numerical_jacobian(@f_VFM_normal_cl_circle, xep);
-
-            [V,Lambda] = eig(A);
-            Lambda = diag(Lambda);
-
-            sig = sign(sign(real(Lambda))+0.1);
-            sig = (sig + 1)/2;
-            flag = sum(sig);
-
-            v = V(:,~sig);
-
-            ep_set_cl(mm).xep = xep;
-            ep_set_cl(mm).A = A;
-            ep_set_cl(mm).Lambda = Lambda;
-            ep_set_cl(mm).V = V;
-            ep_set_cl(mm).v = v;
-            ep_set_cl(mm).flag = flag;
-
-            mm = mm + 1;
+switch system
+    case "VFM"
+        %% current limit
+        if limit_type == "cir"
+        
+        %%  ======= circle limit ==========
+        % ===== 1. 找 equilibrium =====
+        torralence = 1e-2;
+        mm = 1;
+        ep_set_cl = [];
+        
+        options = optimoptions('fsolve',...
+            'FunctionTolerance',1e-10,...
+            'MaxIterations',100000,...
+            'OptimalityTolerance',1e-10,...
+            'Display','off');
+        
+        for n = 1:length(x_set(1,:))
+            xep0 = x_set(:,n);
+        
+            [xep,ferr,exitflag] = fsolve(@f_VFM_normal_cl_circle, xep0, options);
+        
+            if exitflag > 0 && maxabs(ferr) < torralence
+                if isnewxep(ep_set_cl,xep,torralence)
+        
+                    % 数值 Jacobian
+                    A = numerical_jacobian(@f_VFM_normal_cl_circle, xep);
+        
+                    [V,Lambda] = eig(A);
+                    Lambda = diag(Lambda);
+        
+                    sig = sign(sign(real(Lambda))+0.1);
+                    sig = (sig + 1)/2;
+                    flag = sum(sig);
+        
+                    v = V(:,~sig);
+        
+                    ep_set_cl(mm).xep = xep;
+                    ep_set_cl(mm).A = A;
+                    ep_set_cl(mm).Lambda = Lambda;
+                    ep_set_cl(mm).V = V;
+                    ep_set_cl(mm).v = v;
+                    ep_set_cl(mm).flag = flag;
+        
+                    mm = mm + 1;
+                end
+            end
         end
-    end
-end
-
-% ===== 2. 扩展周期（和原代码一致） =====
-clear ep_set_ext_cl
-for n = 1:length(ep_set_cl)
-    ep_set_ext_cl(n) = ep_set_cl(n);
-end
-
-% ===== 3. 画稳定流形 =====
-figure(f1)
-hold on
-
-for mm = 1:length(ep_set_ext_cl)
-
-    xep  = ep_set_ext_cl(mm).xep;
-    flag = ep_set_ext_cl(mm).flag;
-
-    if flag == 1   % UEP
-
-        % 取稳定特征向量
-        stable_idx = find(real(ep_set_ext_cl(mm).Lambda) < 0);
-        v = ep_set_ext_cl(mm).V(:, stable_idx);
-
-        if size(v,2) > 1
-            v = v(1,:); % 简化（理论上2维只会1个）
+        
+        % ===== 2. 扩展周期（和原代码一致） =====
+        clear ep_set_ext_cl
+        for n = 1:length(ep_set_cl)
+            ep_set_ext_cl(n) = ep_set_cl(n);
         end
-
-        v = real(v);
-        v = v / norm(v);
-
-        perturb = 1e-4;
-
-        opt_back = odeset('RelTol',1e-6);
-
-        [~, x_p] = ode78(@(t,x)-f_VFM_normal_cl_circle(x), [0,2], xep + perturb*v);
-        [~, x_n] = ode78(@(t,x)-f_VFM_normal_cl_circle(x), [0,2], xep - perturb*v);
-
-        x_all = [flip(x_n,1); x_p];
-
-        plot(x_all(:,1), x_all(:,2),'k-','LineWidth',1.5);
-    end
-end
-
-% ===== 4. 画限流分界 δc =====
-Ug   = evalin('base','Ug');
-Vvfm = evalin('base','Vvfm');
-Ilim = evalin('base','Ilim');
-Xg   = evalin('base','Xg');
-Rg   = evalin('base','Rg');
-
-deltac = acos((Vvfm^2 + Ug^2 - Ilim^2*(Xg^2 + Rg^2))/(2*Vvfm*Ug));
-
-yl = ylim;
-
-plot([deltac deltac], [yl(1) yl(2)], 'g-','LineWidth',2);
-plot([-deltac -deltac], yl, 'g-','LineWidth',2);
-
-delta_uep_cl = [];
-
-for k = 1:length(ep_set_cl)
-    if ep_set_cl(k).flag == 1   % UEP
-        delta_uep_cl = ep_set_cl(k).xep(1);
-        break;   % 如果只有一个UEP，直接取第一个
-    end
-end
-
-if ~isempty(delta_uep_cl)
-    yl = ylim;
-    plot([delta_uep_cl delta_uep_cl], [yl(1) yl(2)], 'c-','LineWidth',2);
-end
-
-
-% =====  traj ======%
-t_start = 0.1;
-delta_pre_cl = [prefault_SEP(1); prefault_SEP(1)];
-y_pre_cl     = [prefault_SEP(2); prefault_SEP(2)];
-
-t_prefault_cl = [0; 0.1];
-
-[t_fault_cl, x_fault_cl] = ode78(@(t,x) f_VFM_fault_cl_circle(x), ...
-    [t_start, t_start + t_c], ...
-    [prefault_SEP(1); prefault_SEP(2)], ...
-    odeset('RelTol',1e-6));
-
-delta_fault_cl = x_fault_cl(:,1);
-y_fault_cl     = x_fault_cl(:,2);
-
-options_cl = odeset('RelTol',1e-10);
-[t_postfault_cl, x_post_cl] = ode78(@(t,x) f_VFM_normal_cl_circle(x), ...
-    [t_fault_cl(end), t_end], ...
-    x_fault_cl(end,1:2), ...
-    options_cl);
-
-delta_post_cl = x_post_cl(:,1);
-y_post_cl     = x_post_cl(:,2);
-
-figure(f1)
-hold on
-
-plot(delta_fault_cl, y_fault_cl, 'r-', 'LineWidth', 1.8);
-
-plot(delta_post_cl(1), y_post_cl(1), 'k.', 'MarkerSize', 6, 'LineWidth', 1.2);
-plot(delta_fault_cl(1), y_fault_cl(1), 'k.', 'MarkerSize', 6, 'LineWidth', 1.2);
-
-% 故障后轨迹
-plot(delta_post_cl, y_post_cl, 'b-', 'LineWidth', 1.8);
-
-%%  =============virtuial admitance ===================
-elseif limit_type == "VA"
-%% ===== 1. 找 equilibrium =====
-torralence = 1e-2;
-mm = 1;
-ep_set_va = [];
-
-options = optimoptions('fsolve',...
-    'FunctionTolerance',1e-10,...
-    'MaxIterations',100000,...
-    'OptimalityTolerance',1e-10,...
-    'Display','off');
-
-for n = 1:length(x_set(1,:))
-    xep0 = x_set(:,n);
-
-    % ★★★ 用 VA 模型 ★★★
-    [xep,ferr,exitflag] = fsolve(@f_VFM_normal_cl_va, xep0, options);
-
-    if exitflag > 0 && maxabs(ferr) < torralence
-        if isnewxep(ep_set_va,xep,torralence)
-
-            A = numerical_jacobian(@f_VFM_normal_cl_va, xep);
-
-            [V,Lambda] = eig(A);
-            Lambda = diag(Lambda);
-
-            sig = sign(sign(real(Lambda))+0.1);
-            sig = (sig + 1)/2;
-            flag = sum(sig);
-
-            v = V(:,~sig);
-
-            ep_set_va(mm).xep = xep;
-            ep_set_va(mm).A = A;
-            ep_set_va(mm).Lambda = Lambda;
-            ep_set_va(mm).V = V;
-            ep_set_va(mm).v = v;
-            ep_set_va(mm).flag = flag;
-
-            mm = mm + 1;
+        
+        % ===== 3. 画稳定流形 =====
+        figure(f1)
+        hold on
+        
+        for mm = 1:length(ep_set_ext_cl)
+        
+            xep  = ep_set_ext_cl(mm).xep;
+            flag = ep_set_ext_cl(mm).flag;
+        
+            if flag == 1   % UEP
+        
+                % 取稳定特征向量
+                stable_idx = find(real(ep_set_ext_cl(mm).Lambda) < 0);
+                v = ep_set_ext_cl(mm).V(:, stable_idx);
+        
+                if size(v,2) > 1
+                    v = v(1,:); % 简化（理论上2维只会1个）
+                end
+        
+                v = real(v);
+                v = v / norm(v);
+        
+                perturb = 1e-4;
+        
+                opt_back = odeset('RelTol',1e-6);
+        
+                [~, x_p] = ode78(@(t,x)-f_VFM_normal_cl_circle(x), [0,2], xep + perturb*v);
+                [~, x_n] = ode78(@(t,x)-f_VFM_normal_cl_circle(x), [0,2], xep - perturb*v);
+        
+                x_all = [flip(x_n,1); x_p];
+        
+                plot(x_all(:,1), x_all(:,2),'k-','LineWidth',1.5);
+            end
         end
-    end
-end
-
-% ===== 2. 扩展周期（简单版） =====
-clear ep_set_ext_va
-for n = 1:length(ep_set_va)
-    ep_set_ext_va(n) = ep_set_va(n);
-end
-
-% ===== 3. 画稳定流形 =====
-figure(f1)
-hold on
-
-for mm = 1:length(ep_set_ext_va)
-
-    xep  = ep_set_ext_va(mm).xep;
-    flag = ep_set_ext_va(mm).flag;
-
-    if flag == 1   % UEP
-
-        stable_idx = find(real(ep_set_ext_va(mm).Lambda) < 0);
-        v = ep_set_ext_va(mm).V(:, stable_idx);
-
-        if size(v,2) > 1
-            v = v(1,:);
+        
+        % ===== 4. 画限流分界 δc =====
+        Ug   = evalin('base','Ug');
+        Vvfm = evalin('base','Vvfm');
+        Ilim = evalin('base','Ilim');
+        Xg   = evalin('base','Xg');
+        Rg   = evalin('base','Rg');
+        
+        deltac = acos((Vvfm^2 + Ug^2 - Ilim^2*(Xg^2 + Rg^2))/(2*Vvfm*Ug));
+        
+        yl = ylim;
+        
+        plot([deltac deltac], [yl(1) yl(2)], 'g-','LineWidth',2);
+        plot([-deltac -deltac], yl, 'g-','LineWidth',2);
+        
+        delta_uep_cl = [];
+        
+        for k = 1:length(ep_set_cl)
+            if ep_set_cl(k).flag == 1   % UEP
+                delta_uep_cl = ep_set_cl(k).xep(1);
+                break;   % 如果只有一个UEP，直接取第一个
+            end
         end
+        
+        if ~isempty(delta_uep_cl)
+            yl = ylim;
+            plot([delta_uep_cl delta_uep_cl], [yl(1) yl(2)], 'c-','LineWidth',2);
+        end
+        
+        
+        % =====  traj ======%
+        t_start = 0.1;
+        delta_pre_cl = [prefault_SEP(1); prefault_SEP(1)];
+        y_pre_cl     = [prefault_SEP(2); prefault_SEP(2)];
+        
+        t_prefault_cl = [0; 0.1];
+        
+        [t_fault_cl, x_fault_cl] = ode78(@(t,x) f_VFM_fault_cl_circle(x), ...
+            [t_start, t_start + t_c], ...
+            [prefault_SEP(1); prefault_SEP(2)], ...
+            odeset('RelTol',1e-6));
+        
+        delta_fault_cl = x_fault_cl(:,1);
+        y_fault_cl     = x_fault_cl(:,2);
+        
+        options_cl = odeset('RelTol',1e-10);
+        [t_postfault_cl, x_post_cl] = ode78(@(t,x) f_VFM_normal_cl_circle(x), ...
+            [t_fault_cl(end), t_end], ...
+            x_fault_cl(end,1:2), ...
+            options_cl);
+        
+        delta_post_cl = x_post_cl(:,1);
+        y_post_cl     = x_post_cl(:,2);
+        
+        figure(f1)
+        hold on
+        
+        plot(delta_fault_cl, y_fault_cl, 'r-', 'LineWidth', 1.8);
+        
+        plot(delta_post_cl(1), y_post_cl(1), 'k.', 'MarkerSize', 6, 'LineWidth', 1.2);
+        plot(delta_fault_cl(1), y_fault_cl(1), 'k.', 'MarkerSize', 6, 'LineWidth', 1.2);
+        
+        % 故障后轨迹
+        plot(delta_post_cl, y_post_cl, 'b-', 'LineWidth', 1.8);
+        
+        %%  =============virtuial admitance ===================
+        elseif limit_type == "VA"
+        %% ===== 1. 找 equilibrium =====
+        torralence = 1e-2;
+        mm = 1;
+        ep_set_va = [];
+        
+        options = optimoptions('fsolve',...
+            'FunctionTolerance',1e-10,...
+            'MaxIterations',100000,...
+            'OptimalityTolerance',1e-10,...
+            'Display','off');
+        
+        for n = 1:length(x_set(1,:))
+            xep0 = x_set(:,n);
+        
+            % ★★★ 用 VA 模型 ★★★
+            [xep,ferr,exitflag] = fsolve(@f_VFM_normal_cl_va, xep0, options);
+        
+            if exitflag > 0 && maxabs(ferr) < torralence
+                if isnewxep(ep_set_va,xep,torralence)
+        
+                    A = numerical_jacobian(@f_VFM_normal_cl_va, xep);
+        
+                    [V,Lambda] = eig(A);
+                    Lambda = diag(Lambda);
+        
+                    sig = sign(sign(real(Lambda))+0.1);
+                    sig = (sig + 1)/2;
+                    flag = sum(sig);
+        
+                    v = V(:,~sig);
+        
+                    ep_set_va(mm).xep = xep;
+                    ep_set_va(mm).A = A;
+                    ep_set_va(mm).Lambda = Lambda;
+                    ep_set_va(mm).V = V;
+                    ep_set_va(mm).v = v;
+                    ep_set_va(mm).flag = flag;
+        
+                    mm = mm + 1;
+                end
+            end
+        end
+        
+        % ===== 2. 扩展周期（简单版） =====
+        clear ep_set_ext_va
+        for n = 1:length(ep_set_va)
+            ep_set_ext_va(n) = ep_set_va(n);
+        end
+        
+        % ===== 3. 画稳定流形 =====
+        figure(f1)
+        hold on
+        
+        for mm = 1:length(ep_set_ext_va)
+        
+            xep  = ep_set_ext_va(mm).xep;
+            flag = ep_set_ext_va(mm).flag;
+        
+            if flag == 1   % UEP
+        
+                stable_idx = find(real(ep_set_ext_va(mm).Lambda) < 0);
+                v = ep_set_ext_va(mm).V(:, stable_idx);
+        
+                if size(v,2) > 1
+                    v = v(1,:);
+                end
+        
+                v = v / norm(v);
+        
+                perturb = 1e-4;
+        
+                [~, x_p] = ode78(@(t,x)-f_VFM_normal_cl_va(x), [0,2], xep + perturb*v);
+                [~, x_n] = ode78(@(t,x)-f_VFM_normal_cl_va(x), [0,2], xep - perturb*v);
+        
+                x_all = [flip(x_n,1); x_p];
+        
+                plot(x_all(:,1), x_all(:,2),'k-','LineWidth',1.5);
+            end
+        end
+        
+        % ===== 4. 找 VA 模型 UEP 并画竖线 =====
+        delta_uep_va = [];
+        
+        for k = 1:length(ep_set_va)
+            if ep_set_va(k).flag == 1
+                delta_uep_va = ep_set_va(k).xep(1);
+                break;
+            end
+        end
+        
+        if ~isempty(delta_uep_va)
+            yl = ylim;
+            plot([delta_uep_va delta_uep_va], [yl(1) yl(2)], 'm-','LineWidth',2);
+        end
+        deltac = acos((Vvfm^2 + Ug^2 - Ilim^2*(Xg^2 + Rg^2))/(2*Vvfm*Ug));
+        plot([deltac deltac], [yl(1) yl(2)], 'g-','LineWidth',2);
+        plot([-deltac -deltac], yl, 'g-','LineWidth',2);
+        % ===== 5. fault / postfault trajectory =====
+        t_start = 0.1;
+        
+        [t_fault_va, x_fault_va] = ode78(@(t,x) f_VFM_fault_cl_va(x), ...
+            [t_start, t_start + t_c], ...
+            [prefault_SEP(1); prefault_SEP(2)], ...
+            odeset('RelTol',1e-6));
+        
+        delta_fault_va = x_fault_va(:,1);
+        y_fault_va     = x_fault_va(:,2);
+        
+        options_va = odeset('RelTol',1e-10);
+        [t_post_va, x_post_va] = ode78(@(t,x) f_VFM_normal_cl_va(x), ...
+            [t_fault_va(end), t_end], ...
+            x_fault_va(end,1:2), ...
+            options_va);
+        
+        delta_post_va = x_post_va(:,1);
+        y_post_va     = x_post_va(:,2);
+        
+        figure(f1)
+        hold on
+        
+        plot(delta_fault_va, y_fault_va, 'r-', 'LineWidth', 1.8);
+        
+        plot(delta_post_va(1), y_post_va(1), 'k.', 'MarkerSize', 6);
+        plot(delta_fault_va(1), y_fault_va(1), 'k.', 'MarkerSize', 6);
+        
+        plot(delta_post_va, y_post_va, 'b-', 'LineWidth', 1.8);
 
-        v = v / norm(v);
+        end
+        case "GFM"
+            if limit_type == "cir"
+            %%  ============= circle current limit ===================
+            %% ===== 1. 找 equilibrium =====
+            torralence = 1e-2;
+            mm = 1;
+            ep_set_cl = [];
+            
+            options = optimoptions('fsolve',...
+                'FunctionTolerance',1e-10,...
+                'MaxIterations',100000,...
+                'OptimalityTolerance',1e-10,...
+                'Display','off');
+            
+            for n = 1:length(x_set(1,:))
+                xep0 = x_set(:,n);
+            
+                [xep,ferr,exitflag] = fsolve(@f_GFM_normal_cl_circle, xep0, options);
+            
+                if exitflag > 0 && maxabs(ferr) < torralence
+                    if isnewxep(ep_set_cl,xep,torralence)
+            
+                        A = numerical_jacobian(@f_GFM_normal_cl_circle, xep);
+            
+                        [V,Lambda] = eig(A);
+                        Lambda = diag(Lambda);
+            
+                        sig = sign(sign(real(Lambda))+0.1);
+                        sig = (sig + 1)/2;
+                        flag = sum(sig);
+            
+                        v = V(:,~sig);
+            
+                        ep_set_cl(mm).xep = xep;
+                        ep_set_cl(mm).A = A;
+                        ep_set_cl(mm).Lambda = Lambda;
+                        ep_set_cl(mm).V = V;
+                        ep_set_cl(mm).v = v;
+                        ep_set_cl(mm).flag = flag;
+            
+                        mm = mm + 1;
+                    end
+                end
+            end
+            
+            %% ===== 2. 扩展周期（简单版） =====
+            clear ep_set_ext_cl
+            for n = 1:length(ep_set_cl)
+                ep_set_ext_cl(n) = ep_set_cl(n);
+            end
+            
+            %% ===== 3. 画稳定流形 =====
+            figure(f1)
+            hold on
+            
+            for mm = 1:length(ep_set_ext_cl)
+            
+                xep  = ep_set_ext_cl(mm).xep;
+                flag = ep_set_ext_cl(mm).flag;
+            
+                if flag == 1   % UEP
+            
+                    stable_idx = find(real(ep_set_ext_cl(mm).Lambda) < 0);
+                    v = ep_set_ext_cl(mm).V(:, stable_idx);
+            
+                    if size(v,2) > 1
+                        v = v(:,1);
+                    end
+            
+                    v = real(v);
+                    v = v / norm(v);
+            
+                    perturb = 1e-4;
+                    options_cl = odeset('RelTol',1e-10);
+            
+                    [~, x_p] = ode78(@(t,x)-f_GFM_normal_cl_circle(x), ...
+                        [0,2], xep + perturb*v, options_cl);
+            
+                    [~, x_n] = ode78(@(t,x)-f_GFM_normal_cl_circle(x), ...
+                        [0,2], xep - perturb*v, options_cl);
+            
+                    x_all = [flip(x_n,1); x_p];
+            
+                    plot(x_all(:,1), x_all(:,2),'k-','LineWidth',1.5);
+                end
+            end
+            
+            %% ===== 4. 找 circle 模型 UEP 并画竖线 =====
+            delta_uep_cl = [];
+            
+            for k = 1:length(ep_set_cl)
+                if ep_set_cl(k).flag == 1
+                    delta_uep_cl = ep_set_cl(k).xep(1);
+                    break;
+                end
+            end
+            
+            if ~isempty(delta_uep_cl)
+                yl = ylim;
+                plot([delta_uep_cl delta_uep_cl], [yl(1) yl(2)], 'c-','LineWidth',2);
+            end
+            
+            deltac = acos((Vgfm^2 + Ug^2 - Ilim^2*(Xg^2 + Rg^2))/(2*Vgfm*Ug));
+            yl = ylim;
+            plot([deltac deltac], [yl(1) yl(2)], 'g-','LineWidth',2);
+            plot([-deltac -deltac], yl, 'g-','LineWidth',2);
+            
+            %% ===== 5. fault / postfault trajectory =====
+            t_start = 0.1;
+            
+            [t_fault_cl, x_fault_cl] = ode78(@(t,x) f_GFM_fault_cl_circle(x), ...
+                [t_start, t_start + t_c], ...
+                [prefault_SEP(1); prefault_SEP(2)], ...
+                odeset('RelTol',1e-6));
+            
+            delta_fault_cl = x_fault_cl(:,1);
+            y_fault_cl     = x_fault_cl(:,2);
+            
+            options_cl = odeset('RelTol',1e-10);
+            
+            [t_post_cl, x_post_cl] = ode78(@(t,x) f_GFM_normal_cl_circle(x), ...
+                [t_fault_cl(end), t_end], ...
+                x_fault_cl(end,1:2), ...
+                options_cl);
+            
+            delta_post_cl = x_post_cl(:,1);
+            y_post_cl     = x_post_cl(:,2);
+            
+            figure(f1)
+            hold on
+            
+            %plot(delta_fault_cl, y_fault_cl, 'r-', 'LineWidth', 1.8);
+            
+            % plot(delta_post_cl(1), y_post_cl(1), 'k.', 'MarkerSize', 6);
+            % plot(delta_fault_cl(1), y_fault_cl(1), 'k.', 'MarkerSize', 6);
+            
+            %plot(delta_post_cl, y_post_cl, 'b-', 'LineWidth', 1.8);
+            
+            elseif limit_type == "VA"
+            %%  =============virtuial admitance ===================
+            %% ===== 1. 找 equilibrium =====
+            torralence = 1e-2;
+            mm = 1;
+            ep_set_va = [];
+            
+            options = optimoptions('fsolve',...
+                'FunctionTolerance',1e-10,...
+                'MaxIterations',100000,...
+                'OptimalityTolerance',1e-10,...
+                'Display','off');
+            
+            for n = 1:length(x_set(1,:))
+                xep0 = x_set(:,n);
+            
+                % ★★★ 用 VA 模型 ★★★
+                [xep,ferr,exitflag] = fsolve(@f_GFM_normal_cl_va, xep0, options);
+            
+                if exitflag > 0 && maxabs(ferr) < torralence
+                    if isnewxep(ep_set_va,xep,torralence)
+            
+                        A = numerical_jacobian(@f_GFM_normal_cl_va, xep);
+            
+                        [V,Lambda] = eig(A);
+                        Lambda = diag(Lambda);
+            
+                        sig = sign(sign(real(Lambda))+0.1);
+                        sig = (sig + 1)/2;
+                        flag = sum(sig);
+            
+                        v = V(:,~sig);
+            
+                        ep_set_va(mm).xep = xep;
+                        ep_set_va(mm).A = A;
+                        ep_set_va(mm).Lambda = Lambda;
+                        ep_set_va(mm).V = V;
+                        ep_set_va(mm).v = v;
+                        ep_set_va(mm).flag = flag;
+            
+                        mm = mm + 1;
+                    end
+                end
+            end
+            
+            % ===== 2. 扩展周期（简单版） =====
+            clear ep_set_ext_va
+            for n = 1:length(ep_set_va)
+                ep_set_ext_va(n) = ep_set_va(n);
+            end
+            
+            % ===== 3. 画稳定流形 =====
+            figure(f1)
+            hold on
+            
+            for mm = 1:length(ep_set_ext_va)
+            
+                xep  = ep_set_ext_va(mm).xep;
+                flag = ep_set_ext_va(mm).flag;
+            
+                if flag == 1   % UEP
+            
+                    stable_idx = find(real(ep_set_ext_va(mm).Lambda) < 0);
+                    v = ep_set_ext_va(mm).V(:, stable_idx);
+            
+                    if size(v,2) > 1
+                        v = v(1,:);
+                    end
+            
+                    v = v / norm(v);
+            
+                    perturb = 1e-4;
+                    options = odeset('RelTol',1e-10);
+            
+                    [~, x_p] = ode78(@(t,x)-f_GFM_normal_cl_va(x), [0,2], xep + perturb*v, options);
+                    [~, x_n] = ode78(@(t,x)-f_GFM_normal_cl_va(x), [0,2], xep - perturb*v, options);
+            
+                    x_all = [flip(x_n,1); x_p];
+            
+                    plot(x_all(:,1), x_all(:,2),'k-','LineWidth',1.5);
+                end
+            end
+            
+            % ===== 4. 找 VA 模型 UEP 并画竖线 =====
+            delta_uep_va = [];
+            
+            for k = 1:length(ep_set_va)
+                if ep_set_va(k).flag == 1
+                    delta_uep_va = ep_set_va(k).xep(1);
+                    break;
+                end
+            end
+            
+            if ~isempty(delta_uep_va)
+                yl = ylim;
+                plot([delta_uep_va delta_uep_va], [yl(1) yl(2)], 'm-','LineWidth',2);
+            end
+            deltac = acos((Vgfm^2 + Ug^2 - Ilim^2*(Xg^2 + Rg^2))/(2*Vgfm*Ug));
+            plot([deltac deltac], [yl(1) yl(2)], 'g-','LineWidth',2);
+            plot([-deltac -deltac], yl, 'g-','LineWidth',2);
 
-        perturb = 1e-4;
 
-        [~, x_p] = ode78(@(t,x)-f_VFM_normal_cl_va(x), [0,2], xep + perturb*v);
-        [~, x_n] = ode78(@(t,x)-f_VFM_normal_cl_va(x), [0,2], xep - perturb*v);
 
-        x_all = [flip(x_n,1); x_p];
+            % ===== 5. fault / postfault trajectory =====
+            t_start = 0.1;
+            
+            [t_fault_va, x_fault_va] = ode78(@(t,x) f_GFM_fault_cl_va(x), ...
+                [t_start, t_start + t_c], ...
+                [prefault_SEP(1); prefault_SEP(2)], ...
+                odeset('RelTol',1e-6));
+            
+            delta_fault_va = x_fault_va(:,1);
+            y_fault_va     = x_fault_va(:,2);
+            
+            options_va = odeset('RelTol',1e-10);
+            [t_post_va, x_post_va] = ode78(@(t,x) f_GFM_normal_cl_va(x), ...
+                [t_fault_va(end), t_end], ...
+                x_fault_va(end,1:2), ...
+                options_va);
+            
+            delta_post_va = x_post_va(:,1);
+            y_post_va     = x_post_va(:,2);
+            
+            figure(f1)
+            hold on
+            
+            % plot(delta_fault_va, y_fault_va, 'r-', 'LineWidth', 1.8);
+            % 
+            % plot(delta_post_va(1), y_post_va(1), 'k.', 'MarkerSize', 6);
+            % plot(delta_fault_va(1), y_fault_va(1), 'k.', 'MarkerSize', 6);
+            % 
+            % plot(delta_post_va, y_post_va, 'b-', 'LineWidth', 1.8);
+            elseif limit_type == "VI"
+                %%  ============= virtual impedance current limit ===================
+                %% ===== 1. 找 equilibrium =====
+                torralence = 1e-2;
+                mm = 1;
+                ep_set_vi = [];
+                
+                options = optimoptions('fsolve',...
+                    'FunctionTolerance',1e-10,...
+                    'MaxIterations',100000,...
+                    'OptimalityTolerance',1e-10,...
+                    'Display','off');
+                
+                for n = 1:length(x_set(1,:))
+                    xep0 = x_set(:,n);
+                
+                    [xep,ferr,exitflag] = fsolve(@f_GFM_normal_cl_vi, xep0, options);
+                
+                    if exitflag > 0 && maxabs(ferr) < torralence
+                        if isnewxep(ep_set_vi,xep,torralence)
+                
+                            A = numerical_jacobian(@f_GFM_normal_cl_vi, xep);
+                
+                            [V,Lambda] = eig(A);
+                            Lambda = diag(Lambda);
+                
+                            sig = sign(sign(real(Lambda))+0.1);
+                            sig = (sig + 1)/2;
+                            flag = sum(sig);
+                
+                            v = V(:,~sig);
+                
+                            ep_set_vi(mm).xep = xep;
+                            ep_set_vi(mm).A = A;
+                            ep_set_vi(mm).Lambda = Lambda;
+                            ep_set_vi(mm).V = V;
+                            ep_set_vi(mm).v = v;
+                            ep_set_vi(mm).flag = flag;
+                
+                            mm = mm + 1;
+                        end
+                    end
+                end
+                
+                %% ===== 2. 扩展周期（简单版） =====
+                clear ep_set_ext_vi
+                for n = 1:length(ep_set_vi)
+                    ep_set_ext_vi(n) = ep_set_vi(n);
+                end
+                
+                %% ===== 3. 画稳定流形 =====
+                figure(f1)
+                hold on
+                
+                for mm = 1:length(ep_set_ext_vi)
+                
+                    xep  = ep_set_ext_vi(mm).xep;
+                    flag = ep_set_ext_vi(mm).flag;
+                
+                    if flag == 1   % UEP
+                
+                        stable_idx = find(real(ep_set_ext_vi(mm).Lambda) < 0);
+                        v = ep_set_ext_vi(mm).V(:, stable_idx);
+                
+                        if size(v,2) > 1
+                            v = v(:,1);
+                        end
+                
+                        v = real(v);
+                        v = v / norm(v);
+                
+                        perturb = 1e-4;
+                        options_vi = odeset('RelTol',1e-10);
+                
+                        [~, x_p] = ode78(@(t,x)-f_GFM_normal_cl_vi(x), ...
+                            [0,2], xep + perturb*v, options_vi);
+                
+                        [~, x_n] = ode78(@(t,x)-f_GFM_normal_cl_vi(x), ...
+                            [0,2], xep - perturb*v, options_vi);
+                
+                        x_all = [flip(x_n,1); x_p];
+                
+                        plot(x_all(:,1), x_all(:,2),'k-','LineWidth',1.5);
+                    end
+                end
+                
+                %% ===== 4. 找 VI 模型 UEP 并画竖线 =====
+                delta_uep_vi = [];
+                
+                for k = 1:length(ep_set_vi)
+                    if ep_set_vi(k).flag == 1
+                        delta_uep_vi = ep_set_vi(k).xep(1);
+                        break;
+                    end
+                end
+                
+                if ~isempty(delta_uep_vi)
+                    yl = ylim;
+                    plot([delta_uep_vi delta_uep_vi], [yl(1) yl(2)], 'Color',[0.2 0.6 0.9], 'LineWidth',2);
+                end
+                
+                % 原始电流进入限流的分界线 Xv=0, I0=Ilim
+                arg_vi = (Vgfm^2 + Ug^2 - Ilim^2*(Xg^2 + Rg^2))/(2*Vgfm*Ug);
+                if abs(arg_vi) <= 1
+                    deltac_vi = acos(arg_vi);
+                    yl = ylim;
+                    plot([deltac_vi deltac_vi], [yl(1) yl(2)], 'g-','LineWidth',2);
+                    plot([-deltac_vi -deltac_vi], yl, 'g-','LineWidth',2);
+                end
+                
+                %% ===== 5. fault / postfault trajectory =====
+                t_start = 0.1;
+                
+                [t_fault_vi, x_fault_vi] = ode78(@(t,x) f_GFM_fault_cl_vi(x), ...
+                    [t_start, t_start + t_c], ...
+                    [prefault_SEP(1); prefault_SEP(2)], ...
+                    odeset('RelTol',1e-6));
+                
+                delta_fault_vi = x_fault_vi(:,1);
+                y_fault_vi     = x_fault_vi(:,2);
+                
+                options_vi = odeset('RelTol',1e-10);
+                
+                [t_post_vi, x_post_vi] = ode78(@(t,x) f_GFM_normal_cl_vi(x), ...
+                    [t_fault_vi(end), t_end], ...
+                    x_fault_vi(end,1:2), ...
+                    options_vi);
+                
+                delta_post_vi = x_post_vi(:,1);
+                y_post_vi     = x_post_vi(:,2);
+                
+                figure(f1)
+                hold on
+                
+                % plot(delta_fault_vi, y_fault_vi, 'r-', 'LineWidth', 1.8);
+                % 
+                % plot(delta_post_vi(1), y_post_vi(1), 'k.', 'MarkerSize', 6);
+                % plot(delta_fault_vi(1), y_fault_vi(1), 'k.', 'MarkerSize', 6);
+                % 
+                % plot(delta_post_vi, y_post_vi, 'b-', 'LineWidth', 1.8);
+                elseif limit_type == "VA+QV"
+                    %%  ============= virtual admittance + Q-V droop ===================
+                    %% ===== 0. Qref: steady-state Q under original Vgfm =====
+                    if ~exist('kq','var')
+                        kq = 1;
+                    end
+                    
+                    
+                    %% ===== 1. 找 equilibrium =====
+                    torralence = 1e-2;
+                    mm = 1;
+                    ep_set_va_qv = [];
+                    
+                    options = optimoptions('fsolve',...
+                        'FunctionTolerance',1e-10,...
+                        'MaxIterations',100000,...
+                        'OptimalityTolerance',1e-10,...
+                        'Display','off');
+                    
+                    for n = 1:length(x_set(1,:))
+                        xep0 = x_set(:,n);
+                        [xep,ferr,exitflag] = fsolve(@f_GFM_normal_cl_va_qv, xep0, options);
+                    
+                        if exitflag > 0 && maxabs(ferr) < torralence
+                            if isnewxep(ep_set_va_qv,xep,torralence)
+                                A = numerical_jacobian(@f_GFM_normal_cl_va_qv, xep);
+                                [V,Lambda] = eig(A);
+                                Lambda = diag(Lambda);
+                                sig = sign(sign(real(Lambda))+0.1);
+                                sig = (sig + 1)/2;
+                                flag = sum(sig);
+                                v = V(:,~sig);
+                    
+                                ep_set_va_qv(mm).xep = xep;
+                                ep_set_va_qv(mm).A = A;
+                                ep_set_va_qv(mm).Lambda = Lambda;
+                                ep_set_va_qv(mm).V = V;
+                                ep_set_va_qv(mm).v = v;
+                                ep_set_va_qv(mm).flag = flag;
+                                mm = mm + 1;
+                            end
+                        end
+                    end
+                    
+                    %% ===== 2. 扩展周期（简单版） =====
+                    clear ep_set_ext_va_qv
+                    for n = 1:length(ep_set_va_qv)
+                        ep_set_ext_va_qv(n) = ep_set_va_qv(n);
+                    end
+                    
+                    %% ===== 3. 画稳定流形 =====
+                    figure(f1)
+                    hold on
+                    
+                    for mm = 1:length(ep_set_ext_va_qv)
+                        xep  = ep_set_ext_va_qv(mm).xep;
+                        flag = ep_set_ext_va_qv(mm).flag;
+                    
+                        if flag == 1
+                            stable_idx = find(real(ep_set_ext_va_qv(mm).Lambda) < 0);
+                            v = ep_set_ext_va_qv(mm).V(:, stable_idx);
+                            if size(v,2) > 1
+                                v = v(:,1);
+                            end
+                            v = real(v);
+                            v = v / norm(v);
+                    
+                            perturb = 1e-4;
+                            options_qv = odeset('RelTol',1e-10);
+                            [~, x_p] = ode78(@(t,x)-f_GFM_normal_cl_va_qv(x), [0,2], xep + perturb*v, options_qv);
+                            [~, x_n] = ode78(@(t,x)-f_GFM_normal_cl_va_qv(x), [0,2], xep - perturb*v, options_qv);
+                            x_all = [flip(x_n,1); x_p];
+                            plot(x_all(:,1), x_all(:,2),'k-','LineWidth',1.5);
+                        end
+                    end
+                    
+                    %% ===== 4. 找 VA+QV 模型 UEP 并画竖线 =====
+                    delta_uep_va_qv = [];
+                    for k = 1:length(ep_set_va_qv)
+                        if ep_set_va_qv(k).flag == 1
+                            delta_uep_va_qv = ep_set_va_qv(k).xep(1);
+                            break;
+                        end
+                    end
+                    
+                    if ~isempty(delta_uep_va_qv)
+                        yl = ylim;
+                        plot([delta_uep_va_qv delta_uep_va_qv], [yl(1) yl(2)], 'Color',[0.1 0.5 0.1], 'LineWidth',2);
+                    end
+                    %% ===== 画 VA+QV 限流边界 =====
+                    
+                    delta_scan = linspace(0,pi,1000);
+                    I_scan = zeros(size(delta_scan));
+                    
+                    for kk = 1:length(delta_scan)
+                    
+                        delta_tmp = delta_scan(kk);
+                    
+                        Uf = solve_Uf_qv( ...
+                                delta_tmp,...
+                                Ug,...
+                                Rg,...
+                                Xg,...
+                                Vgfm,...
+                                kq,...
+                                Qref1);
+                    
+                        I_scan(kk) = sqrt( ...
+                            (Uf^2 + Ug^2 - 2*Uf*Ug*cos(delta_tmp)) ...
+                            /(Rg^2 + Xg^2));
+                    
+                    end
+                    
+                    idx = find(I_scan >= Ilim,1);
+                    
+                    if ~isempty(idx)
+                    
+                        deltac_qv = delta_scan(idx);
+                    
+                        yl = ylim;
+                    
+                        plot([deltac_qv deltac_qv], ...
+                             [yl(1) yl(2)], ...
+                             'g-','LineWidth',2);
+                    
+                        plot([-deltac_qv -deltac_qv], ...
+                             [yl(1) yl(2)], ...
+                             'g-','LineWidth',2);
+                    
+                    end
+                    %% ===== 5. fault / postfault trajectory =====
+                    t_start = 0.1;
+                    [t_fault_va_qv, x_fault_va_qv] = ode78(@(t,x) f_GFM_fault_cl_va_qv(x), ...
+                    [t_start, t_start + t_c], [prefault_SEP(1); prefault_SEP(2)], odeset('RelTol',1e-6));
+                    
+                    delta_fault_va_qv = x_fault_va_qv(:,1);
+                    y_fault_va_qv     = x_fault_va_qv(:,2);
+                    
+                    options_qv = odeset('RelTol',1e-10);
+                    [t_post_va_qv, x_post_va_qv] = ode78(@(t,x) f_GFM_normal_cl_va_qv(x), ...
+                        [t_fault_va_qv(end), t_end], x_fault_va_qv(end,1:2), options_qv);
+                    
+                    delta_post_va_qv = x_post_va_qv(:,1);
+                    y_post_va_qv     = x_post_va_qv(:,2);
+                    
+                    figure(f1)
+                    hold on
+                    plot(delta_fault_va_qv, y_fault_va_qv, 'r-', 'LineWidth', 1.8);
+                    plot(delta_post_va_qv(1), y_post_va_qv(1), 'k.', 'MarkerSize', 6);
+                    plot(delta_fault_va_qv(1), y_fault_va_qv(1), 'k.', 'MarkerSize', 6);
+                    plot(delta_post_va_qv, y_post_va_qv, 'b-', 'LineWidth', 1.8);
 
-        plot(x_all(:,1), x_all(:,2),'k-','LineWidth',1.5);
-    end
+                    elseif limit_type == "cir+QV"
+                        %% circular current limit + Q-V droop
+                        
+                        torralence = 1e-2;
+                        mm = 1;
+                        ep_set_cir_qv = [];
+                        
+                        options = optimoptions('fsolve','FunctionTolerance',1e-10,...
+                            'MaxIterations',100000,'OptimalityTolerance',1e-10,'Display','off');
+                        
+                        for n = 1:length(x_set(1,:))
+                            xep0 = x_set(:,n);
+                            [xep,ferr,exitflag] = fsolve(@f_GFM_normal_cl_circle_qv,xep0,options);
+                        
+                            if exitflag > 0 && maxabs(ferr) < torralence
+                                if isnewxep(ep_set_cir_qv,xep,torralence)
+                                    A = numerical_jacobian(@f_GFM_normal_cl_circle_qv,xep);
+                                    [V,Lambda] = eig(A);
+                                    Lambda = diag(Lambda);
+                                    sig = sign(sign(real(Lambda))+0.1);
+                                    sig = (sig+1)/2;
+                                    flag = sum(sig);
+                                    v = V(:,~sig);
+                        
+                                    ep_set_cir_qv(mm).xep = xep;
+                                    ep_set_cir_qv(mm).A = A;
+                                    ep_set_cir_qv(mm).Lambda = Lambda;
+                                    ep_set_cir_qv(mm).V = V;
+                                    ep_set_cir_qv(mm).v = v;
+                                    ep_set_cir_qv(mm).flag = flag;
+                                    mm = mm+1;
+                                end
+                            end
+                        end
+                        
+                        clear ep_set_ext_cir_qv
+                        for n = 1:length(ep_set_cir_qv)
+                            ep_set_ext_cir_qv(n) = ep_set_cir_qv(n);
+                        end
+                        
+                        figure(f1); hold on
+                        for mm = 1:length(ep_set_ext_cir_qv)
+                            xep = ep_set_ext_cir_qv(mm).xep;
+                            if ep_set_ext_cir_qv(mm).flag == 1
+                                stable_idx = find(real(ep_set_ext_cir_qv(mm).Lambda)<0);
+                                v = ep_set_ext_cir_qv(mm).V(:,stable_idx);
+                                if size(v,2)>1, v = v(:,1); end
+                                v = real(v); v = v/norm(v);
+                                perturb = 1e-4;
+                                options_cir_qv = odeset('RelTol',1e-10);
+                                [~,x_p] = ode78(@(t,x)-f_GFM_normal_cl_circle_qv(x),[0,2],xep+perturb*v,options_cir_qv);
+                                [~,x_n] = ode78(@(t,x)-f_GFM_normal_cl_circle_qv(x),[0,2],xep-perturb*v,options_cir_qv);
+                                x_all = [flip(x_n,1);x_p];
+                                plot(x_all(:,1),x_all(:,2),'k-','LineWidth',1.5);
+                            end
+                        end
+                        
+                        delta_uep_cir_qv = [];
+                        for k = 1:length(ep_set_cir_qv)
+                            if ep_set_cir_qv(k).flag == 1
+                                delta_uep_cir_qv = ep_set_cir_qv(k).xep(1);
+                                break;
+                            end
+                        end
+                        
+                        if ~isempty(delta_uep_cir_qv)
+                            yl = ylim;
+                            plot([delta_uep_cir_qv delta_uep_cir_qv],yl,'Color',[0.1 0.5 0.1],'LineWidth',2);
+                        end
+                        
+                        delta_scan = linspace(0,pi,2000);
+                        I_scan = zeros(size(delta_scan));
+                        for kk = 1:length(delta_scan)
+                            dd = delta_scan(kk);
+                            Uf0 = solve_Uf_qv(dd,Ug,Rg,Xg,Vgfm,kq,Qref1);
+                            I_scan(kk) = sqrt((Uf0^2+Ug^2-2*Uf0*Ug*cos(dd))/(Rg^2+Xg^2));
+                        end
+                        idx = find(I_scan>=Ilim,1);
+                        
+                        if ~isempty(idx)
+                            if idx == 1
+                                deltac_cir_qv = delta_scan(1);
+                            else
+                                current_boundary = @(dd) sqrt(...
+                                    (solve_Uf_qv(dd,Ug,Rg,Xg,Vgfm,kq,Qref1).^2+Ug^2-2*solve_Uf_qv(dd,Ug,Rg,Xg,Vgfm,kq,Qref1).*Ug.*cos(dd))...
+                                    /(Rg^2+Xg^2))-Ilim;
+                                deltac_cir_qv = fzero(current_boundary,[delta_scan(idx-1),delta_scan(idx)]);
+                            end
+                            yl = ylim;
+                            plot([deltac_cir_qv deltac_cir_qv],yl,'g-','LineWidth',2);
+                            plot([-deltac_cir_qv -deltac_cir_qv],yl,'g-','LineWidth',2);
+                        end
+                        
+                        t_start = 0.1;
+                        [t_fault_cir_qv,x_fault_cir_qv] = ode78(@(t,x)f_GFM_fault_cl_circle_qv(x),...
+                            [t_start,t_start+t_c],[prefault_SEP(1);prefault_SEP(2)],odeset('RelTol',1e-6));
+                        
+                        [t_post_cir_qv,x_post_cir_qv] = ode78(@(t,x)f_GFM_normal_cl_circle_qv(x),...
+                            [t_fault_cir_qv(end),t_end],x_fault_cir_qv(end,1:2),odeset('RelTol',1e-10));
+                        
+                        figure(f1); hold on
+                        plot(x_fault_cir_qv(:,1),x_fault_cir_qv(:,2),'r-','LineWidth',1.8);
+                        plot(x_post_cir_qv(1,1),x_post_cir_qv(1,2),'k.','MarkerSize',6);
+                        plot(x_fault_cir_qv(1,1),x_fault_cir_qv(1,2),'k.','MarkerSize',6);
+                        plot(x_post_cir_qv(:,1),x_post_cir_qv(:,2),'b-','LineWidth',1.8);
+
+            end
 end
-
-% ===== 4. 找 VA 模型 UEP 并画竖线 =====
-delta_uep_va = [];
-
-for k = 1:length(ep_set_va)
-    if ep_set_va(k).flag == 1
-        delta_uep_va = ep_set_va(k).xep(1);
-        break;
-    end
-end
-
-if ~isempty(delta_uep_va)
-    yl = ylim;
-    plot([delta_uep_va delta_uep_va], [yl(1) yl(2)], 'm-','LineWidth',2);
-end
-deltac = acos((Vvfm^2 + Ug^2 - Ilim^2*(Xg^2 + Rg^2))/(2*Vvfm*Ug));
-plot([deltac deltac], [yl(1) yl(2)], 'g-','LineWidth',2);
-plot([-deltac -deltac], yl, 'g-','LineWidth',2);
-% ===== 5. fault / postfault trajectory =====
-t_start = 0.1;
-
-[t_fault_va, x_fault_va] = ode78(@(t,x) f_VFM_fault_cl_va(x), ...
-    [t_start, t_start + t_c], ...
-    [prefault_SEP(1); prefault_SEP(2)], ...
-    odeset('RelTol',1e-6));
-
-delta_fault_va = x_fault_va(:,1);
-y_fault_va     = x_fault_va(:,2);
-
-options_va = odeset('RelTol',1e-10);
-[t_post_va, x_post_va] = ode78(@(t,x) f_VFM_normal_cl_va(x), ...
-    [t_fault_va(end), t_end], ...
-    x_fault_va(end,1:2), ...
-    options_va);
-
-delta_post_va = x_post_va(:,1);
-y_post_va     = x_post_va(:,2);
-
-figure(f1)
-hold on
-
-plot(delta_fault_va, y_fault_va, 'r-', 'LineWidth', 1.8);
-
-plot(delta_post_va(1), y_post_va(1), 'k.', 'MarkerSize', 6);
-plot(delta_fault_va(1), y_fault_va(1), 'k.', 'MarkerSize', 6);
-
-plot(delta_post_va, y_post_va, 'b-', 'LineWidth', 1.8);
-
-end
-
-
 
 
 %% function

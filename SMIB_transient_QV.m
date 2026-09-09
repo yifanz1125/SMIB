@@ -23,7 +23,7 @@ fsep = @(delta) Rg*(Vgfm^2 - Vgfm*Ug*cos(delta))/(Rg^2 + Xg^2) ...
            + Xg*Vgfm*Ug*sin(delta)/(Rg^2 + Xg^2) ...
            - Pm;
 deltas = fsolve(fsep, 0);
-Qref1 = Xg*(Vgfm^2 - Vgfm*Ug*cos(deltas))/(Rg^2+Xg^2) - Rg*Vgfm*Ug*sin(deltas)/(Rg^2+Xg^2);
+Qref = Xg*(Vgfm^2 - Vgfm*Ug*cos(deltas))/(Rg^2+Xg^2) - Rg*Vgfm*Ug*sin(deltas)/(Rg^2+Xg^2);
 
 
 %GFM with VOC
@@ -44,7 +44,7 @@ Qref2 = Xg*(VN^2 - VN*Ug*cos(deltas))/(Rg^2+Xg^2) - Rg*VN*Ug*sin(deltas)/(Rg^2+X
 global system;
 global fault_type; %line_cut voltage_sag frequency
 fault_type = "voltage_sag"; %"voltage_sag";%"line_cut";%"line_cut";
-system = "VOC";  %GFMQ   VOC
+system = "VOC";  %GFMQ   VOC  "dVOC"
 model = "original";% "original"
 
 switch fault_type

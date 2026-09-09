@@ -1,12 +1,7 @@
 function dfdt = f_GFM_fault(x)
-
-    kgfm = evalin('base','kgfm');
-    w_droop = evalin('base','w_droop');
     Ug =evalin('base','Ug_fault');
     Pm =evalin('base','Pm');
-        
-    kp = evalin('base','kp');
-    ki = evalin('base','ki');
+    
 
     Ws = evalin('base','Ws');
 
@@ -23,7 +18,9 @@ function dfdt = f_GFM_fault(x)
         Rg = evalin('base','Rg_f');
         Lg = Xg/Ws;
     end
-    
+    D = evalin('base','D');
+
+    J = evalin('base','J');
 
 
     delta = x(1);
@@ -31,12 +28,8 @@ function dfdt = f_GFM_fault(x)
     
     P = Rg*(Vgfm^2-Vgfm*Ug*cos(delta))/(Rg^2+Xg^2)+Xg*Vgfm*Ug*sin(delta)/(Rg^2+Xg^2);
     
-
-   
-
-
-    dfdt(1) = omega;
-    dfdt(2) = (kgfm*(Pm-P)-omega)*w_droop;
+    dfdt(1) = omega*Ws;
+    dfdt(2) = (Pm-P)/J - D/J*omega;%(kgfm*(Pm-P)-omega)*w_droop;
  
     dfdt = dfdt.';
 

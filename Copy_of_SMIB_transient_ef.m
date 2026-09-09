@@ -497,98 +497,121 @@ elseif system == "VFM"
 %     contour(y1,y2,zz,[Vcr2 Vcr2],'b-','linewidth',1.5,"ShowText",false);
 
 
-    % energy function 3
-    syms deltax yx;
-    delta_s = prefault_SEP(1);
-    deltauep = ep_set(2).xep(1);
-    %V3 = 1/ki/2*(omegax-kp*vvq)^2 - (Ug*cos(deltax)-Ug*cos(delta_s)+Xg*Id*(deltax-delta_s)+1/2*Id*Lg*omegax*(deltax-delta_s));%
-    Pint_now = ...
-    - Pin*(deltax-delta_s) ...
-    + Rg*(Vvfm^2*(deltax-delta_s) ...
-    - Vvfm*Ug*(sin(deltax)-sin(delta_s)))/(Rg^2+Xg^2) ...
-    - Xg*Vvfm*Ug*(cos(deltax)-cos(delta_s))/(Rg^2+Xg^2);
+   % energy function 3: conservative damping compensation
 
-    Pint_uep = ...
-    - Pin*(deltauep-delta_s) ...
-    + Rg*(Vvfm^2*(deltauep-delta_s) ...
-    - Vvfm*Ug*(sin(deltauep)-sin(delta_s)))/(Rg^2+Xg^2) ...
-    - Xg*Vvfm*Ug*(cos(deltauep)-cos(delta_s))/(Rg^2+Xg^2);
-    
-    Arem = Pint_uep - Pint_now;
-   
+delta_s   = prefault_SEP(1);
+deltauep  = ep_set(2).xep(1);
 
-    ratio_A_raw = Arem/(deltauep-deltax);
-    
-    V3 = C_dc/4*Kip*yx^2 ...
-        + Pint_now ...
-        - Kpp/(2/C_dc*Kip)*(Kip*yx)*ratio_A_raw*0;
-    
-    
-    V3 = vpa(V3);
-    
-    % 主能量函数
-    VV3 = matlabFunction(V3);
-    
-    % 势能部分（用于UEP处取极限）
-    VV_Pint_now = matlabFunction(Pint_now);
-    
-    % 导数
-    V3d  = jacobian(V3);
-    VV3d = matlabFunction(V3d);
-    
-    x1=-2*pi:0.01*pi:2*pi;
-    x2=-4:0.02:6;
-    
-    [y1,y2]=meshgrid(x1,x2);
-    
-    zz  = zeros(length(x2),length(x1));
-    dzz = nan(length(x2),length(x1));
-    
-    eps_delta = 1e-3;
-    
-    for a = 1:length(x1)
-        for b = 1:length(x2)
-    
-            del = y1(b,a);
-            yy  = y2(b,a);
-    
-            % ----------------------------
-            % 避开 UEP 奇异点
-            % ----------------------------
+Den = Rg^2 + Xg^2;
+
+% P(delta)
+Pfun = @(d) ...
+    (Rg*(Vvfm^2 - Vvfm*Ug*cos(d)) ...
+    + Xg*Vvfm*Ug*sin(d)) ./ Den;
+
+% dP/ddelta
+dPfun = @(d) ...
+    (Rg*Vvfm*Ug*sin(d) ...
+    + Xg*Vvfm*Ug*cos(d)) ./ Den;
+
+% integral from delta_s to d of P-Pin
+Pint_fun = @(d) ...
+    - Pin*(d-delta_s) ...
+    + Rg*(Vvfm^2*(d-delta_s) ...
+    - Vvfm*Ug*(sin(d)-sin(delta_s))) / Den ...
+    - Xg*Vvfm*Ug*(cos(d)-cos(delta_s)) / Den;
+
+% integral from da to db of P-Pin
+IntP = @(da,db) Pint_fun(db) - Pint_fun(da);
+
+% find delta_fmax: P'(delta)=0, P''<0
+delta0 = atan2(Xg, Rg);   % P maximum candidate
+cand = delta0 + 2*pi*(-5:5);
+cand = cand(cand > delta_s & cand < deltauep);
+
+if isempty(cand)
+    [~,idx] = max(Pfun(linspace(delta_s,deltauep,2000)));
+    tmp = linspace(delta_s,deltauep,2000);
+    delta_fmax = tmp(idx);
+else
+    [~,idx] = max(Pfun(cand));
+    delta_fmax = cand(idx);
+end
+
+% stable eigenvector slope at UEP
+fp_uep = dPfun(deltauep);
+
+s_stable = ...
+    (Kpp*fp_uep - sqrt(Kpp^2*fp_uep^2 - 4*Kip*fp_uep))/2;
+
+% coefficient appearing in screenshot
+coef = Kpp/(2/C_dc*Kip);
+
+x1 = -2*pi:0.01*pi:2*pi;
+x2 = -4:0.02:6;
+
+[y1,y2] = meshgrid(x1,x2);
+
+zz  = zeros(length(x2),length(x1));
+dzz = nan(length(x2),length(x1));
+
+eps_delta = 1e-6;
+
+for a = 1:length(x1)
+    for b = 1:length(x2)
+
+        del = y1(b,a);
+        yy  = y2(b,a);
+
+        Pint_now = Pint_fun(del);
+
+        Vbase = C_dc/4*Kip*yy^2 + Pint_now;
+
+        xint = Kip*yy;
+
+        % -----------------------------
+        % conservative damping estimate
+        % -----------------------------
+        if del < delta_fmax
+
+            I1 = IntP(del, delta_fmax);
+            I2 = IntP(delta_fmax, deltauep);
+
             if abs(deltauep-del) < eps_delta
-    
-                % UEP附近采用极限值
-                zz(b,a) = C_dc/4*Kip*yy^2 ...
-                        + VV_Pint_now(del);
-    
-                dzz(b,a) = NaN;
-    
+                Wd_hat = 0;
             else
-    
-                zz(b,a) = VV3(del,yy);
-    
-                dV = VV3d(del,yy) ...
-                    * f_VFM_normal([del yy]);
-    
-                dzz(b,a) = dV;
-    
+                Wd_hat = ...
+                    - coef * xint/(deltauep-del) * I1 ...
+                    + coef * (s_stable) * I2;
             end
-    
-        end
-    end
 
-% ----------------------------------
-% 临界能量：不要调用 VV3(deltauep,0)
-% ----------------------------------
-V3cr = VV_Pint_now(deltauep);
+        else
+
+            I2 = IntP(del, deltauep);
+
+            Wd_hat = ...
+                + coef * (s_stable) * I2;
+
+        end
+
+        % energy with damping compensation
+        zz(b,a) = Vbase + Wd_hat;
+
+    end
+end
+
+% critical energy at UEP
+V3cr = Pint_fun(deltauep);
 
 contour(y1,y2,zz,...
        [V3cr V3cr],...
        'b-',...
        'linewidth',1.5,...
        "ShowText",false);
-    % contour(y1,y2,zz_2,[V3cr V3cr],'m-','linewidth',1.5,"ShowText",false);
-    % contour(y1,y2,dzz,[-10 -5 0 5 10],'r:','linewidth',0.5,"ShowText",true);
+
+% optional: draw delta_fmax and UEP
+xline(delta_fmax,'k--','LineWidth',1.2);
+xline(deltauep,'m--','LineWidth',1.2);
 
 
 

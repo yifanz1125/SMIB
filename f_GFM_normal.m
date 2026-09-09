@@ -1,13 +1,7 @@
 function dfdt = f_GFM_normal(x)
-
-    m_gfm = evalin('base','m_gfm');
-    w_droop = evalin('base','w_droop');
     Ug =evalin('base','Ug');
     Pm =evalin('base','Pm');
-        
-    kp = evalin('base','kp');
-    ki = evalin('base','ki');
-
+    
     Ws = evalin('base','Ws');
 
     Xg = evalin('base','Xg');
