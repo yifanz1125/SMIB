@@ -43,7 +43,7 @@ w_i_GFL2 = 1100 *2*pi;
 % AC filter parameters
 Lf = 0.05;
 Cf1 = 0.01;%0.02
-Cf2 = 0.01;%0.02
+Cf2 = 0.02;%0.02
 Lc = 1e-9;
 
 Vdc = 2.5;
