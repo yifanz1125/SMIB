@@ -1,7 +1,7 @@
 %% parameter
 
-
 t_end = 2;
+t_start = 0.1;
 
 %grid
 
@@ -14,9 +14,9 @@ W_g = 0;
 
 
 %GFM
-m_gfm = 0.05; 
-w_droop = 0.8*2*pi;
-1/(w_droop*m_gfm)
+% m_gfm = 0.05; 
+% w_droop = 0.8*2*pi;
+% 1/(w_droop*m_gfm)
 D = 15; %1/m_gfm;
 J = 3;  %
 Vgfm = 1;
@@ -33,7 +33,10 @@ Kip = 15;%15
 Vvfm = 1;
 Pin = 1;
 Phi = -pi/4;
-Ilim = 1.5;
+
+
+
+Ilim = 2;
 
 kq = 0;
 
@@ -52,8 +55,8 @@ Qref1 = Xg*(Vgfm^2 - Vgfm*Ug*cos(deltas))/(Rg^2+Xg^2) ...
 global system;
 global fault_type; %line_cut voltage_sag frequency
 global limit_type
-fault_type = "voltage_sag"; %"voltage_sag";%"line_cut";%"line_cut";
-limit_type = "VI";   %"cir"   "VA" "VI"  "VA+QV"
+fault_type = "voltage_sag"; %"voltage_sag";%"line_cut";%"phase_jump";
+limit_type = "cir";   %"cir"   "VA" "VI"  "VA+QV"
 system = "GFM";  %GFMQ   VOC
 model = "original";% "original"
 
@@ -243,7 +246,8 @@ for mm = 1 : length(ep_set_ext)
             [~ , x_n] = ode78(@f_backward,[0,2],xep-v*perturb,odeset('RelTol',1e-5)); 
         end
         x_all = [flip(x_n,1);x_p];
-        plot(x_all(:,1),x_all(:,2),'k:','linewidth',1.5);
+        plot(x_all(:,1), x_all(:,2), '-', ...
+    'Color', [0.5 0.5 0.5], 'LineWidth', 1.5);
     end
 end
 
@@ -252,7 +256,7 @@ switch fault_type
     case "voltage_sag"
     
     if system == "GFM"
-    t_start = 0.1;
+    
     delta_pre = [prefault_SEP(1); prefault_SEP(1)];
     omega_pre = [prefault_SEP(2); prefault_SEP(2)];
 
@@ -276,7 +280,6 @@ switch fault_type
 
     
     elseif system == "VFM"
-        t_start = 0.1;
         delta_pre = [prefault_SEP(1); prefault_SEP(1)];
         omega_pre = [prefault_SEP(2); prefault_SEP(2)];
     
@@ -424,7 +427,6 @@ switch system
         
         
         % =====  traj ======%
-        t_start = 0.1;
         delta_pre_cl = [prefault_SEP(1); prefault_SEP(1)];
         y_pre_cl     = [prefault_SEP(2); prefault_SEP(2)];
         
@@ -558,7 +560,6 @@ switch system
         plot([deltac deltac], [yl(1) yl(2)], 'g-','LineWidth',2);
         plot([-deltac -deltac], yl, 'g-','LineWidth',2);
         % ===== 5. fault / postfault trajectory =====
-        t_start = 0.1;
         
         [t_fault_va, x_fault_va] = ode78(@(t,x) f_VFM_fault_cl_va(x), ...
             [t_start, t_start + t_c], ...
@@ -696,7 +697,6 @@ switch system
             plot([-deltac -deltac], yl, 'g-','LineWidth',2);
             
             %% ===== 5. fault / postfault trajectory =====
-            t_start = 0.1;
             
             [t_fault_cl, x_fault_cl] = ode78(@(t,x) f_GFM_fault_cl_circle(x), ...
                 [t_start, t_start + t_c], ...
@@ -719,12 +719,12 @@ switch system
             figure(f1)
             hold on
             
-            %plot(delta_fault_cl, y_fault_cl, 'r-', 'LineWidth', 1.8);
+            plot(delta_fault_cl, y_fault_cl, 'r-', 'LineWidth', 1.8);
             
-            % plot(delta_post_cl(1), y_post_cl(1), 'k.', 'MarkerSize', 6);
-            % plot(delta_fault_cl(1), y_fault_cl(1), 'k.', 'MarkerSize', 6);
+            plot(delta_post_cl(1), y_post_cl(1), 'k.', 'MarkerSize', 6);
+            plot(delta_fault_cl(1), y_fault_cl(1), 'k.', 'MarkerSize', 6);
             
-            %plot(delta_post_cl, y_post_cl, 'b-', 'LineWidth', 1.8);
+            plot(delta_post_cl, y_post_cl, 'b-', 'LineWidth', 1.8);
             
             elseif limit_type == "VA"
             %%  =============virtuial admitance ===================
@@ -830,7 +830,6 @@ switch system
 
 
             % ===== 5. fault / postfault trajectory =====
-            t_start = 0.1;
             
             [t_fault_va, x_fault_va] = ode78(@(t,x) f_GFM_fault_cl_va(x), ...
                 [t_start, t_start + t_c], ...
@@ -852,12 +851,12 @@ switch system
             figure(f1)
             hold on
             
-            % plot(delta_fault_va, y_fault_va, 'r-', 'LineWidth', 1.8);
-            % 
-            % plot(delta_post_va(1), y_post_va(1), 'k.', 'MarkerSize', 6);
-            % plot(delta_fault_va(1), y_fault_va(1), 'k.', 'MarkerSize', 6);
-            % 
-            % plot(delta_post_va, y_post_va, 'b-', 'LineWidth', 1.8);
+            plot(delta_fault_va, y_fault_va, 'r-', 'LineWidth', 1.8);
+
+            plot(delta_post_va(1), y_post_va(1), 'k.', 'MarkerSize', 6);
+            plot(delta_fault_va(1), y_fault_va(1), 'k.', 'MarkerSize', 6);
+
+            plot(delta_post_va, y_post_va, 'b-', 'LineWidth', 1.8);
             elseif limit_type == "VI"
                 %%  ============= virtual impedance current limit ===================
                 %% ===== 1. 找 equilibrium =====
@@ -969,7 +968,6 @@ switch system
                 end
                 
                 %% ===== 5. fault / postfault trajectory =====
-                t_start = 0.1;
                 
                 [t_fault_vi, x_fault_vi] = ode78(@(t,x) f_GFM_fault_cl_vi(x), ...
                     [t_start, t_start + t_c], ...
@@ -992,12 +990,12 @@ switch system
                 figure(f1)
                 hold on
                 
-                % plot(delta_fault_vi, y_fault_vi, 'r-', 'LineWidth', 1.8);
-                % 
-                % plot(delta_post_vi(1), y_post_vi(1), 'k.', 'MarkerSize', 6);
-                % plot(delta_fault_vi(1), y_fault_vi(1), 'k.', 'MarkerSize', 6);
-                % 
-                % plot(delta_post_vi, y_post_vi, 'b-', 'LineWidth', 1.8);
+                plot(delta_fault_vi, y_fault_vi, 'r-', 'LineWidth', 1.8);
+
+                plot(delta_post_vi(1), y_post_vi(1), 'k.', 'MarkerSize', 6);
+                plot(delta_fault_vi(1), y_fault_vi(1), 'k.', 'MarkerSize', 6);
+
+                plot(delta_post_vi, y_post_vi, 'b-', 'LineWidth', 1.8);
                 elseif limit_type == "VA+QV"
                     %%  ============= virtual admittance + Q-V droop ===================
                     %% ===== 0. Qref: steady-state Q under original Vgfm =====
@@ -1129,7 +1127,6 @@ switch system
                     
                     end
                     %% ===== 5. fault / postfault trajectory =====
-                    t_start = 0.1;
                     [t_fault_va_qv, x_fault_va_qv] = ode78(@(t,x) f_GFM_fault_cl_va_qv(x), ...
                     [t_start, t_start + t_c], [prefault_SEP(1); prefault_SEP(2)], odeset('RelTol',1e-6));
                     
@@ -1243,7 +1240,6 @@ switch system
                             plot([-deltac_cir_qv -deltac_cir_qv],yl,'g-','LineWidth',2);
                         end
                         
-                        t_start = 0.1;
                         [t_fault_cir_qv,x_fault_cir_qv] = ode78(@(t,x)f_GFM_fault_cl_circle_qv(x),...
                             [t_start,t_start+t_c],[prefault_SEP(1);prefault_SEP(2)],odeset('RelTol',1e-6));
                         

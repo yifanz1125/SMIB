@@ -6,31 +6,46 @@
 % Rg, Xg, Ug, Vgfm, Ilim, Pm, J, Ws, D, prefault_SEP, delta_uep_cl, f1
 
 %% ===================== basic quantities =====================
-delta = -2*pi:0.01:2*pi;
+arg_c = (Vgfm^2 + Ug^2 ...
+       - Ilim^2*(Xg^2 + Rg^2))/(2*Vgfm*Ug);
+
+deltac = acos(arg_c);
+
+% Explicitly include all switching points in [-2*pi, 2*pi]
+delta0 = -2*pi:0.01:2*pi;
+k = -1:1;
+
+delta_sw = [2*pi*k - deltac, 2*pi*k + deltac];
+delta_sw = delta_sw(delta_sw >= -2*pi & delta_sw <= 2*pi);
+
+delta = unique(sort([delta0, delta_sw]));
 
 Pv = Rg*(Vgfm^2 - Vgfm*Ug*cos(delta))./(Rg^2+Xg^2) ...
    + Xg*Vgfm*Ug*sin(delta)./(Rg^2+Xg^2);
 
 Den = Vgfm^2 + Ug^2 - 2*Vgfm*Ug*cos(delta);
 
-% circular limiter: active-power expression in the limited region
 Rad = Den/Ilim^2 - Xg^2;
+Rad(abs(Rad) < 1e-12) = 0;
 Rad(Rad < 0) = NaN;
+
 Sroot = sqrt(Rad);
 
-Pi = Sroot ./ Den .* Ilim^2 .* (Vgfm*Ug*cos(delta) - Ug^2) ...
+Pi = Sroot ./ Den .* Ilim^2 ...
+     .* (Vgfm*Ug*cos(delta) - Ug^2) ...
    + Xg ./ Den .* Ilim^2 .* Vgfm*Ug.*sin(delta) ...
    + Ilim^2*Rg;
 
 Iv = sqrt(Den./(Xg^2+Rg^2));
 
-deltac = acos((Vgfm^2 + Ug^2 - Ilim^2*(Xg^2 + Rg^2))/(2*Vgfm*Ug));
-
 %% ===================== periodic mapping =====================
 delta_wrap = mod(delta + pi, 2*pi) - pi;
 
-idx_in  = abs(delta_wrap) <= deltac;
-idx_out = ~idx_in;
+tol = 1e-10;
+
+% Include the switching point in both curves
+idx_in  = abs(delta_wrap) <= deltac + tol;
+idx_out = abs(delta_wrap) >= deltac - tol;
 
 %% ===================== current plot =====================
 figure;
@@ -53,7 +68,7 @@ Pv_in  = Pv;  Pv_in(~idx_in)   = NaN;
 Pv_out = Pv;  Pv_out(~idx_out) = NaN;
 
 plot(delta, Pv_in,  'b-',  'LineWidth', 2);
-plot(delta, Pv_out, 'b--', 'LineWidth', 1.5);
+plot(delta, Pv_out, 'Color', [0.5 0.5 0.5], 'LineWidth', 1.5);
 
 Pi_out = Pi;  Pi_out(~idx_out) = NaN;
 plot(delta, Pi_out, 'r-', 'LineWidth', 2);

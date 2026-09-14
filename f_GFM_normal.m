@@ -21,8 +21,6 @@ function dfdt = f_GFM_normal(x)
     P = Rg*(Vgfm^2-Vgfm*Ug*cos(delta))/(Rg^2+Xg^2)+Xg*Vgfm*Ug*sin(delta)/(Rg^2+Xg^2);
     
 
-   
-
 
     dfdt(1) = omega*Ws;
     dfdt(2) = (Pm-P)/J - D/J*omega;%(kgfm*(Pm-P)-omega)*w_droop;
