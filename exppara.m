@@ -19,6 +19,21 @@ Rg2 = 90e-3/Zbase
 Lg3 = 14.3e-3/Zbase*Wbase
 Rg3 = 264e-3/Zbase
 
+Lg4 = 2.09e-3/Zbase*Wbase
+Rg4 = 89.2e-3/Zbase;  
+
+
+
 Lg1+Lg2
 
 Rg1+Rg2
+
+Lg1+Lg4
+
+Rg1+Rg4
+
+
+2*Lg4+Lg2
+
+
+2*Rg4+Rg2

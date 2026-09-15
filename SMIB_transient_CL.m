@@ -1,12 +1,12 @@
 %% parameter
 
 t_end = 2;
-t_start = 0.1;
+t_start = 0.2;
 
 %grid
 
-Xg = 0.536;
-Rg = 0.04;%0.08
+Xg = 0.431;
+Rg = 0.05;%0.08
 Ug = 1;
 Ws = 2*pi*50; 
 Lg= Xg/Ws;
@@ -21,7 +21,7 @@ D = 15; %1/m_gfm;
 J = 3;  %
 Vgfm = 1;
 Pm = 1;
-Kvi = 0.5;
+Kvi = 1;
 
 
 %VFM
@@ -36,7 +36,7 @@ Phi = -pi/4;
 
 
 
-Ilim = 2;
+Ilim = 1.8;
 
 kq = 0;
 
@@ -56,7 +56,7 @@ global system;
 global fault_type; %line_cut voltage_sag frequency
 global limit_type
 fault_type = "voltage_sag"; %"voltage_sag";%"line_cut";%"phase_jump";
-limit_type = "cir";   %"cir"   "VA" "VI"  "VA+QV"
+limit_type = "VA";   %"cir"   "VA" "VI"  "VA+QV"
 system = "GFM";  %GFMQ   VOC
 model = "original";% "original"
 
@@ -68,7 +68,7 @@ switch fault_type
         R1 = 0.01;
         Xgg = (Xg - X1)*2;
         Rgg = (Rg - R1)*2;
-        t_c = 0.13;%0.072;%0.086;0.0795
+        t_c = 0.15;%0.072;%0.086;0.0795
     case "line_cut"
     %fault line cut 
         t_c = 0.06;
@@ -219,16 +219,16 @@ if system == "VFM"
     ymin = -4;
     ymax = 6;
 elseif system == "GFM"
-ymin=-0.2;
-ymax=0.2;
+ymin=-0.05;
+ymax=0.1;
 end
 color_code = {'black','magenta','red','black'};
 
-axis([-1*pi,3/2*pi,ymin,ymax]);
+axis([-1/2*pi,1*pi,ymin,ymax]);
 xticks(-2*pi:pi/2:2*pi);
 xticklabels({'$-2\pi$', '', '$-\pi$', '','$0$', '','$\pi$', '','$2\pi$'});
 set(gca, 'TickLabelInterpreter', 'latex');
-set(gca, 'FontSize', 14);
+set(gca, 'FontSize', 16);
 for mm = 1 : length(ep_set_ext)
     xep = ep_set_ext(mm).xep;
     flag= ep_set_ext(mm).flag;

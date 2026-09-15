@@ -75,6 +75,8 @@ plot(delta, Pi_out, 'r-', 'LineWidth', 2);
 
 plot(delta, Pm*ones(size(delta)), 'k-', 'LineWidth', 1.2);
 
+axis([-pi pi -2 2]);
+
 xlabel('\delta');
 ylabel('P');
 grid on;
@@ -85,7 +87,7 @@ delta_s = prefault_SEP(1);
 
 deltacc = deltac;
 J_ori = J/Ws;
-lamda = 1;
+lamda = 0;
 
 % inner region energy, i.e., original power-angle relation
 VV3 = @(delta_val, omega_val) ...
@@ -259,6 +261,143 @@ for a = 1:length(x1_ls)
     end
 end
 
+%% ===================== Moon lambda-family closed sets (display only) =====================
+% Moon's S_lambda is bounded by the equipotential through the saddle point
+% X_{u,lambda} of E_lambda, rather than by the physical UEP [delta_uep_cl,0].
+% The six thin red curves below are display-only and do not enter the actual
+% stability test based on the original red boundary.
+lambda_family = 0:0.2:1;
+M_moon = J*Ws;
+
+% Construct the undamped potential U_0(delta) over a sufficiently wide
+% interval. The periodic mode logic also includes the negative-angle
+% current-limited region, which is needed to close each S_lambda boundary.
+delta_moon = linspace(delta_s - 4*pi, delta_s + 4*pi, 48001);
+delta_wrap_moon = mod(delta_moon + pi, 2*pi) - pi;
+
+Pe_moon = Rg*(Vgfm^2 - Vgfm*Ug*cos(delta_moon))./(Rg^2+Xg^2) ...
+        + Xg*Vgfm*Ug*sin(delta_moon)./(Rg^2+Xg^2);
+
+idx_lim_moon = abs(delta_wrap_moon) > deltacc;
+delta_lim_moon = delta_moon(idx_lim_moon);
+Den_lim_moon = Vgfm^2 + Ug^2 - 2*Vgfm*Ug*cos(delta_lim_moon);
+Rad_lim_moon = Den_lim_moon/Ilim^2 - Xg^2;
+Rad_lim_moon(abs(Rad_lim_moon) < 1e-12) = 0;
+Rad_lim_moon = max(Rad_lim_moon, 0);
+
+Pe_moon(idx_lim_moon) = sqrt(Rad_lim_moon)./Den_lim_moon .* Ilim^2 ...
+    .* (Vgfm*Ug*cos(delta_lim_moon) - Ug^2) ...
+    + Xg./Den_lim_moon .* Ilim^2 .* Vgfm*Ug.*sin(delta_lim_moon) ...
+    + Ilim^2*Rg;
+
+U0_moon = cumtrapz(delta_moon, Pe_moon - Pm);
+U0_moon = U0_moon ...
+    - interp1(delta_moon, U0_moon, delta_s, 'pchip');
+
+moon_delta_min = inf;
+moon_delta_max = -inf;
+moon_omega_min = inf;
+moon_omega_max = -inf;
+
+for idx_lambda = 1:numel(lambda_family)
+    lambda_plot = lambda_family(idx_lambda);
+
+    % From Moon's (24)-(25):
+    % omega_{u,lambda} = -lambda*D/M*(delta_{u,lambda}-delta_s),
+    % Pe-Pm + lambda*(1-lambda)*D^2/M*(delta-delta_s) = 0.
+    kappa_lambda = lambda_plot*(1-lambda_plot)*D^2/M_moon;
+    grad_Ueff = Pe_moon - Pm ...
+              + kappa_lambda.*(delta_moon-delta_s);
+
+    idx_right = find( ...
+        delta_moon(1:end-1) > delta_s + 1e-8 & ...
+        grad_Ueff(1:end-1) >= 0 & grad_Ueff(2:end) <= 0, ...
+        1, 'first');
+
+    if isempty(idx_right)
+        warning('Moon set skipped for lambda = %.1f: right saddle not found.', ...
+            lambda_plot);
+        continue;
+    end
+
+    d1 = delta_moon(idx_right);
+    d2 = delta_moon(idx_right+1);
+    g1 = grad_Ueff(idx_right);
+    g2 = grad_Ueff(idx_right+1);
+    delta_ulambda = d1 - g1*(d2-d1)/(g2-g1);
+    omega_ulambda = -lambda_plot*D/M_moon ...
+                  * (delta_ulambda-delta_s);
+
+    % Complete-square form of E_lambda:
+    % E_lambda = M/2*(omega + lambda*D/M*Delta_delta)^2
+    %            + U_eff,lambda(delta).
+    Ueff_moon = U0_moon ...
+        + 0.5*kappa_lambda.*(delta_moon-delta_s).^2;
+    Ecrit_lambda = interp1(delta_moon, Ueff_moon, ...
+        delta_ulambda, 'pchip');
+
+    % The left intersection of U_eff,lambda = Ecrit_lambda and the right
+    % saddle delimit the connected closed component containing the SEP.
+    level_gap = Ueff_moon - Ecrit_lambda;
+    idx_left_all = find( ...
+        delta_moon(2:end) < delta_s & ...
+        level_gap(1:end-1) >= 0 & level_gap(2:end) <= 0);
+
+    if isempty(idx_left_all)
+        warning('Moon set skipped for lambda = %.1f: left closure not found.', ...
+            lambda_plot);
+        continue;
+    end
+
+    idx_left = idx_left_all(end);
+    dl1 = delta_moon(idx_left);
+    dl2 = delta_moon(idx_left+1);
+    h1 = level_gap(idx_left);
+    h2 = level_gap(idx_left+1);
+    delta_left = dl1 - h1*(dl2-dl1)/(h2-h1);
+
+    delta_curve = linspace(delta_left, delta_ulambda, 1600);
+    U0_curve = interp1(delta_moon, U0_moon, delta_curve, 'pchip');
+    Ueff_curve = U0_curve ...
+        + 0.5*kappa_lambda.*(delta_curve-delta_s).^2;
+
+    radicand = 2*(Ecrit_lambda-Ueff_curve)/M_moon;
+    radius_omega = sqrt(max(radicand, 0));
+    radius_omega([1 end]) = 0;
+
+    omega_center = -lambda_plot*D/M_moon ...
+                 .* (delta_curve-delta_s);
+    omega_upper = omega_center + radius_omega;
+    omega_lower = omega_center - radius_omega;
+
+    delta_closed = [delta_curve, fliplr(delta_curve)];
+    omega_closed = [omega_upper, fliplr(omega_lower)];
+
+    plot(delta_closed, omega_closed, ...
+        'Color', [0.85 0.15 0.15], ...
+        'LineWidth', 0.7);
+
+    moon_delta_min = min(moon_delta_min, min(delta_closed));
+    moon_delta_max = max(moon_delta_max, max(delta_closed));
+    moon_omega_min = min(moon_omega_min, min(omega_closed));
+    moon_omega_max = max(moon_omega_max, max(omega_closed));
+end
+
+% Expand the displayed window only when necessary so the added curves are
+% visibly closed; this does not alter any original curve data.
+if isfinite(moon_delta_min)
+    xl_now = xlim;
+    yl_now = ylim;
+    x_margin = 0.03*max(moon_delta_max-moon_delta_min, eps);
+    y_margin = 0.03*max(moon_omega_max-moon_omega_min, eps);
+    xlim([min(xl_now(1), moon_delta_min-x_margin), ...
+          max(xl_now(2), moon_delta_max+x_margin)]);
+    ylim([min(yl_now(1), moon_omega_min-y_margin), ...
+          max(yl_now(2), moon_omega_max+y_margin)]);
+end
+
+%% ===================== original stability boundary (unchanged) =====================
+% The actual stability test still uses lambda = 1 and its UEP energy level.
 contour(DL, YL, Vlevel, [Vcut Vcut], ...
     'Color', [1 0.25 0.25], ...
     'LineWidth', 2.2);

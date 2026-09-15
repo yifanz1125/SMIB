@@ -5,7 +5,7 @@ Pv = Rg*(Vvfm^2 - Vvfm*Ug*cos(delta))./(Rg^2+Xg^2) ...
    + Xg*Vvfm*Ug*sin(delta)./(Rg^2+Xg^2);
 
 Phi = -pi/4;
-Ilim = 2;
+Ilim = 1.7;
 
 Den = Vvfm^2 + Ug^2 - 2*Vvfm*Ug*cos(delta);
 Xvar = sqrt(Den/Ilim^2 - Rg^2);

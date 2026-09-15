@@ -4,8 +4,6 @@ delta = -2*pi:0.01:2*pi;
 Pv = Rg*(Vgfm^2 - Vgfm*Ug*cos(delta))./(Rg^2+Xg^2) ...
    + Xg*Vgfm*Ug*sin(delta)./(Rg^2+Xg^2);
 
-Ilim = 2;
-
 Den = Vgfm^2 + Ug^2 - 2*Vgfm*Ug*cos(delta);
 Xvar = sqrt(Den/Ilim^2 - Rg^2);
 
@@ -44,7 +42,7 @@ Pv_in  = Pv;  Pv_in(~idx_in)   = NaN;
 Pv_out = Pv;  Pv_out(~idx_out) = NaN;
 
 plot(delta, Pv_in,  'b-',  'LineWidth', 2);
-plot(delta, Pv_out, 'b--', 'LineWidth', 1.5);
+plot(delta, Pv_out, 'k-', 'LineWidth', 1.5);
 
 % --- Pi ---
 Pi_in  = Pi;  Pi_in(~idx_in)   = NaN;
@@ -54,6 +52,8 @@ plot(delta, Pi_out, 'r-', 'LineWidth', 2);
 
 % --- Pm ---
 plot(delta, Pm*ones(size(delta)), 'k-', 'LineWidth', 1.2);
+
+axis([-pi 3/2*pi -2 2]);
 
 xlabel('\delta');
 ylabel('P');
