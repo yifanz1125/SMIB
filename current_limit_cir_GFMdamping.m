@@ -87,7 +87,7 @@ delta_s = prefault_SEP(1);
 
 deltacc = deltac;
 J_ori = J/Ws;
-lamda = 0;
+lamda = 1;
 
 % inner region energy, i.e., original power-angle relation
 VV3 = @(delta_val, omega_val) ...

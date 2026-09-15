@@ -13,24 +13,30 @@ Zbase = Vbase/Ibase;
 Ybase = 1/Zbase;
 
 %% AC filter parameters
-Lf = 0.05;
-Cf = 0.01; %ideal for no Cf 
+Lf = 0.0592;
+Cf = 0.0083; 
 Lc = 1e-9;
 
 
 %% Rated line impedance1
-Lg1 = imag(Z1);
-Rg1 = real(Z1);
-Lg2 = imag(Z2);
-Rg2 = real(Z2);
-Lgl = imag(Zl);
-Rgl = real(Zl);
+
 
 %% Grid-forming inverter
-% Droop
-Pm2 = Pm2;
-m_gfm = 1/D_sg;       
-w_droop = D_sg/J_sg;  
+E = Vgfm;
+Pm = Pm;
+m_gfm = 1/D;       
+w_droop = D/J;  
+
+% Current loop
+w_i_GFM = 2000*2*pi;
+
+% Voltage loop
+w_v_GFM = 800 *2*pi;
+Scale_ki_v = 20;
+
+
+f_notch  = 50;   % Hz
+BW_notch = 15;   % Hz
 
 
 
@@ -39,7 +45,7 @@ w_droop = D_sg/J_sg;
 switch fault_type
     case "voltage_sag"
     %voltage sag
-    t_sim_start = 10;
+    t_sim_start = 2;
     t0_sag = t_sim_start +t_start;
     dt_sag = t_c;
     v_sag= Ug_fault;

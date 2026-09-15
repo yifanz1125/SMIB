@@ -36,7 +36,7 @@ Phi = -pi/4;
 
 
 
-Ilim = 1.8;
+Ilim = 1.7;  %1.7
 
 kq = 0;
 
@@ -53,12 +53,18 @@ Qref1 = Xg*(Vgfm^2 - Vgfm*Ug*cos(deltas))/(Rg^2+Xg^2) ...
 
 %system
 global system;
-global fault_type; %line_cut voltage_sag frequency
+global fault_type; % "voltage_sag", "phase_jump" ("line_cut" retained)
 global limit_type
 fault_type = "voltage_sag"; %"voltage_sag";%"line_cut";%"phase_jump";
-limit_type = "VA";   %"cir"   "VA" "VI"  "VA+QV"
+limit_type = "cir";   %"cir"   "VA" "VI"  "VA+QV"
 system = "GFM";  %GFMQ   VOC
 model = "original";% "original"
+
+% Grid-voltage angle jump. A positive value means that the grid-voltage
+% angle jumps forward; because delta = theta_GFM/VFM - theta_grid, the
+% corresponding instantaneous change in delta is negative.
+Ug_phase_jump = 0;
+delta_jump_initial = 0;
 
 switch fault_type
     case "voltage_sag"
@@ -68,7 +74,7 @@ switch fault_type
         R1 = 0.01;
         Xgg = (Xg - X1)*2;
         Rgg = (Rg - R1)*2;
-        t_c = 0.15;%0.072;%0.086;0.0795
+        t_c = 0.08;%0.08
     case "line_cut"
     %fault line cut 
         t_c = 0.06;
@@ -89,6 +95,12 @@ switch fault_type
         Ug_fault = Iop_tmp*Rf+Iop_tmp/2*position*(1-position)*(Xgg*1j+Rgg);
         Ug_fault_angle = angle(Ug_fault);
         Ug_fault= abs(Ug_fault);
+    case "phase_jump"
+        Ug_phase_jump = 50*pi/180;   % grid-voltage phase jump (rad)
+        delta_jump_initial = -Ug_phase_jump;
+        t_c = 0;                     % no fault-on interval
+    otherwise
+        error('Unsupported fault_type: %s', fault_type);
 end
 
 
@@ -187,6 +199,27 @@ for mm = 1:length(ep_set)
     disp_v('Eigenvector',ep_set(mm).V);
 end
 
+%% Unified time-domain data container
+% All five current-limiting cases and both requested disturbance types use
+% this same format. The complete displayed interval is
+% [-t_start, t_end-t_start], whose duration is exactly t_end.
+sim_data = struct;
+sim_data.system = system;
+sim_data.limit_type = limit_type;
+sim_data.case_name = system + "_" + limit_type;
+sim_data.fault_type = fault_type;
+sim_data.t_start = t_start;
+sim_data.t_end = t_end;
+sim_data.t_c = t_c;
+sim_data.Ug_phase_jump = Ug_phase_jump;
+sim_data.delta_jump = delta_jump_initial;
+sim_data.prefault.t = [-t_start; 0];
+sim_data.prefault.x = repmat(real(prefault_SEP(:).'), 2, 1);
+sim_data.faulton.t = zeros(0,1);
+sim_data.faulton.x = zeros(0,numel(prefault_SEP));
+sim_data.postfault.t = zeros(0,1);
+sim_data.postfault.x = zeros(0,numel(prefault_SEP));
+
 clear ep_set_ext;
 for n = 1:length(ep_set)
     mm = (n-1)*10;
@@ -260,7 +293,7 @@ switch fault_type
     delta_pre = [prefault_SEP(1); prefault_SEP(1)];
     omega_pre = [prefault_SEP(2); prefault_SEP(2)];
 
-    t_prefault = [0;0.1];
+    t_prefault = [-t_start;0];
 
     [t_fault , x_all] = ode78(@f_fault,[t_start,t_start+t_c],[prefault_SEP(1);prefault_SEP(2)],odeset('RelTol',1e-6));
     omega_fault= x_all(:,2);
@@ -283,7 +316,7 @@ switch fault_type
         delta_pre = [prefault_SEP(1); prefault_SEP(1)];
         omega_pre = [prefault_SEP(2); prefault_SEP(2)];
     
-        t_prefault = [0;0.1];
+        t_prefault = [-t_start;0];
     
         [t_fault , x_all] = ode78(@f_fault,[t_start,t_start+t_c],[prefault_SEP(1);prefault_SEP(2)],odeset('RelTol',1e-6));
         y_fault= x_all(:,2);
@@ -426,39 +459,63 @@ switch system
         end
         
         
-        % =====  traj ======%
-        delta_pre_cl = [prefault_SEP(1); prefault_SEP(1)];
-        y_pre_cl     = [prefault_SEP(2); prefault_SEP(2)];
-        
-        t_prefault_cl = [0; 0.1];
-        
-        [t_fault_cl, x_fault_cl] = ode78(@(t,x) f_VFM_fault_cl_circle(x), ...
-            [t_start, t_start + t_c], ...
-            [prefault_SEP(1); prefault_SEP(2)], ...
-            odeset('RelTol',1e-6));
-        
-        delta_fault_cl = x_fault_cl(:,1);
-        y_fault_cl     = x_fault_cl(:,2);
-        
+        % ===== 5. fault / postfault trajectory =====
+        delta_pre_cl = sim_data.prefault.x(:,1);
+        y_pre_cl = sim_data.prefault.x(:,2);
+        t_prefault_cl = sim_data.prefault.t;
         options_cl = odeset('RelTol',1e-10);
-        [t_postfault_cl, x_post_cl] = ode78(@(t,x) f_VFM_normal_cl_circle(x), ...
-            [t_fault_cl(end), t_end], ...
-            x_fault_cl(end,1:2), ...
-            options_cl);
-        
-        delta_post_cl = x_post_cl(:,1);
-        y_post_cl     = x_post_cl(:,2);
-        
-        figure(f1)
-        hold on
-        
-        plot(delta_fault_cl, y_fault_cl, 'r-', 'LineWidth', 1.8);
-        
-        plot(delta_post_cl(1), y_post_cl(1), 'k.', 'MarkerSize', 6, 'LineWidth', 1.2);
-        plot(delta_fault_cl(1), y_fault_cl(1), 'k.', 'MarkerSize', 6, 'LineWidth', 1.2);
-        
-        % 故障后轨迹
-        plot(delta_post_cl, y_post_cl, 'b-', 'LineWidth', 1.8);
+
+        switch fault_type
+            case {"voltage_sag","line_cut"}
+                [t_fault_cl, x_fault_cl] = ode78(@(t,x) f_VFM_fault_cl_circle(x), ...
+                    [t_start, t_start + t_c], ...
+                    [prefault_SEP(1); prefault_SEP(2)], ...
+                    odeset('RelTol',1e-6));
+
+                [t_postfault_cl, x_post_cl] = ode78(@(t,x) f_VFM_normal_cl_circle(x), ...
+                    [t_fault_cl(end), t_end], ...
+                    x_fault_cl(end,1:2), ...
+                    options_cl);
+
+                sim_data.faulton.t = t_fault_cl - t_start;
+                sim_data.faulton.x = x_fault_cl(:,1:2);
+                sim_data.postfault.t = t_postfault_cl - t_start;
+                sim_data.postfault.x = x_post_cl(:,1:2);
+
+                delta_fault_cl = x_fault_cl(:,1);
+                y_fault_cl = x_fault_cl(:,2);
+                delta_post_cl = x_post_cl(:,1);
+                y_post_cl = x_post_cl(:,2);
+
+                figure(f1); hold on
+                plot(delta_fault_cl, y_fault_cl, 'r-', 'LineWidth', 1.8);
+                plot(delta_post_cl(1), y_post_cl(1), 'k.', ...
+                    'MarkerSize', 6, 'LineWidth', 1.2);
+                plot(delta_fault_cl(1), y_fault_cl(1), 'k.', ...
+                    'MarkerSize', 6, 'LineWidth', 1.2);
+                plot(delta_post_cl, y_post_cl, 'b-', 'LineWidth', 1.8);
+
+            case "phase_jump"
+                x0_phase_jump = [prefault_SEP(1) + delta_jump_initial; ...
+                                 prefault_SEP(2)];
+                [t_postfault_cl, x_post_cl] = ode78(@(t,x) f_VFM_normal_cl_circle(x), ...
+                    [t_start, t_end], x0_phase_jump, options_cl);
+
+                t_fault_cl = zeros(0,1);
+                x_fault_cl = zeros(0,2);
+                delta_fault_cl = zeros(0,1);
+                y_fault_cl = zeros(0,1);
+                delta_post_cl = x_post_cl(:,1);
+                y_post_cl = x_post_cl(:,2);
+
+                sim_data.faulton.t = zeros(0,1);
+                sim_data.faulton.x = zeros(0,2);
+                sim_data.postfault.t = t_postfault_cl - t_start;
+                sim_data.postfault.x = x_post_cl(:,1:2);
+
+                figure(f1); hold on
+                plot(delta_post_cl, y_post_cl, 'b-', 'LineWidth', 1.8);
+        end
         
         %%  =============virtuial admitance ===================
         elseif limit_type == "VA"
@@ -560,33 +617,56 @@ switch system
         plot([deltac deltac], [yl(1) yl(2)], 'g-','LineWidth',2);
         plot([-deltac -deltac], yl, 'g-','LineWidth',2);
         % ===== 5. fault / postfault trajectory =====
-        
-        [t_fault_va, x_fault_va] = ode78(@(t,x) f_VFM_fault_cl_va(x), ...
-            [t_start, t_start + t_c], ...
-            [prefault_SEP(1); prefault_SEP(2)], ...
-            odeset('RelTol',1e-6));
-        
-        delta_fault_va = x_fault_va(:,1);
-        y_fault_va     = x_fault_va(:,2);
-        
         options_va = odeset('RelTol',1e-10);
-        [t_post_va, x_post_va] = ode78(@(t,x) f_VFM_normal_cl_va(x), ...
-            [t_fault_va(end), t_end], ...
-            x_fault_va(end,1:2), ...
-            options_va);
-        
-        delta_post_va = x_post_va(:,1);
-        y_post_va     = x_post_va(:,2);
-        
-        figure(f1)
-        hold on
-        
-        plot(delta_fault_va, y_fault_va, 'r-', 'LineWidth', 1.8);
-        
-        plot(delta_post_va(1), y_post_va(1), 'k.', 'MarkerSize', 6);
-        plot(delta_fault_va(1), y_fault_va(1), 'k.', 'MarkerSize', 6);
-        
-        plot(delta_post_va, y_post_va, 'b-', 'LineWidth', 1.8);
+
+        switch fault_type
+            case {"voltage_sag","line_cut"}
+                [t_fault_va, x_fault_va] = ode78(@(t,x) f_VFM_fault_cl_va(x), ...
+                    [t_start, t_start + t_c], ...
+                    [prefault_SEP(1); prefault_SEP(2)], ...
+                    odeset('RelTol',1e-6));
+
+                [t_post_va, x_post_va] = ode78(@(t,x) f_VFM_normal_cl_va(x), ...
+                    [t_fault_va(end), t_end], ...
+                    x_fault_va(end,1:2), options_va);
+
+                sim_data.faulton.t = t_fault_va - t_start;
+                sim_data.faulton.x = x_fault_va(:,1:2);
+                sim_data.postfault.t = t_post_va - t_start;
+                sim_data.postfault.x = x_post_va(:,1:2);
+
+                delta_fault_va = x_fault_va(:,1);
+                y_fault_va = x_fault_va(:,2);
+                delta_post_va = x_post_va(:,1);
+                y_post_va = x_post_va(:,2);
+
+                figure(f1); hold on
+                plot(delta_fault_va, y_fault_va, 'r-', 'LineWidth', 1.8);
+                plot(delta_post_va(1), y_post_va(1), 'k.', 'MarkerSize', 6);
+                plot(delta_fault_va(1), y_fault_va(1), 'k.', 'MarkerSize', 6);
+                plot(delta_post_va, y_post_va, 'b-', 'LineWidth', 1.8);
+
+            case "phase_jump"
+                x0_phase_jump = [prefault_SEP(1) + delta_jump_initial; ...
+                                 prefault_SEP(2)];
+                [t_post_va, x_post_va] = ode78(@(t,x) f_VFM_normal_cl_va(x), ...
+                    [t_start, t_end], x0_phase_jump, options_va);
+
+                t_fault_va = zeros(0,1);
+                x_fault_va = zeros(0,2);
+                delta_fault_va = zeros(0,1);
+                y_fault_va = zeros(0,1);
+                delta_post_va = x_post_va(:,1);
+                y_post_va = x_post_va(:,2);
+
+                sim_data.faulton.t = zeros(0,1);
+                sim_data.faulton.x = zeros(0,2);
+                sim_data.postfault.t = t_post_va - t_start;
+                sim_data.postfault.x = x_post_va(:,1:2);
+
+                figure(f1); hold on
+                plot(delta_post_va, y_post_va, 'b-', 'LineWidth', 1.8);
+        end
 
         end
         case "GFM"
@@ -697,34 +777,56 @@ switch system
             plot([-deltac -deltac], yl, 'g-','LineWidth',2);
             
             %% ===== 5. fault / postfault trajectory =====
-            
-            [t_fault_cl, x_fault_cl] = ode78(@(t,x) f_GFM_fault_cl_circle(x), ...
-                [t_start, t_start + t_c], ...
-                [prefault_SEP(1); prefault_SEP(2)], ...
-                odeset('RelTol',1e-6));
-            
-            delta_fault_cl = x_fault_cl(:,1);
-            y_fault_cl     = x_fault_cl(:,2);
-            
             options_cl = odeset('RelTol',1e-10);
-            
-            [t_post_cl, x_post_cl] = ode78(@(t,x) f_GFM_normal_cl_circle(x), ...
-                [t_fault_cl(end), t_end], ...
-                x_fault_cl(end,1:2), ...
-                options_cl);
-            
-            delta_post_cl = x_post_cl(:,1);
-            y_post_cl     = x_post_cl(:,2);
-            
-            figure(f1)
-            hold on
-            
-            plot(delta_fault_cl, y_fault_cl, 'r-', 'LineWidth', 1.8);
-            
-            plot(delta_post_cl(1), y_post_cl(1), 'k.', 'MarkerSize', 6);
-            plot(delta_fault_cl(1), y_fault_cl(1), 'k.', 'MarkerSize', 6);
-            
-            plot(delta_post_cl, y_post_cl, 'b-', 'LineWidth', 1.8);
+
+            switch fault_type
+                case {"voltage_sag","line_cut"}
+                    [t_fault_cl, x_fault_cl] = ode78(@(t,x) f_GFM_fault_cl_circle(x), ...
+                        [t_start, t_start + t_c], ...
+                        [prefault_SEP(1); prefault_SEP(2)], ...
+                        odeset('RelTol',1e-6));
+
+                    [t_post_cl, x_post_cl] = ode78(@(t,x) f_GFM_normal_cl_circle(x), ...
+                        [t_fault_cl(end), t_end], ...
+                        x_fault_cl(end,1:2), options_cl);
+
+                    sim_data.faulton.t = t_fault_cl - t_start;
+                    sim_data.faulton.x = x_fault_cl(:,1:2);
+                    sim_data.postfault.t = t_post_cl - t_start;
+                    sim_data.postfault.x = x_post_cl(:,1:2);
+
+                    delta_fault_cl = x_fault_cl(:,1);
+                    y_fault_cl = x_fault_cl(:,2);
+                    delta_post_cl = x_post_cl(:,1);
+                    y_post_cl = x_post_cl(:,2);
+
+                    figure(f1); hold on
+                    plot(delta_fault_cl, y_fault_cl, 'r-', 'LineWidth', 1.8);
+                    plot(delta_post_cl(1), y_post_cl(1), 'k.', 'MarkerSize', 6);
+                    plot(delta_fault_cl(1), y_fault_cl(1), 'k.', 'MarkerSize', 6);
+                    plot(delta_post_cl, y_post_cl, 'b-', 'LineWidth', 1.8);
+
+                case "phase_jump"
+                    x0_phase_jump = [prefault_SEP(1) + delta_jump_initial; ...
+                                     prefault_SEP(2)];
+                    [t_post_cl, x_post_cl] = ode78(@(t,x) f_GFM_normal_cl_circle(x), ...
+                        [t_start, t_end], x0_phase_jump, options_cl);
+
+                    t_fault_cl = zeros(0,1);
+                    x_fault_cl = zeros(0,2);
+                    delta_fault_cl = zeros(0,1);
+                    y_fault_cl = zeros(0,1);
+                    delta_post_cl = x_post_cl(:,1);
+                    y_post_cl = x_post_cl(:,2);
+
+                    sim_data.faulton.t = zeros(0,1);
+                    sim_data.faulton.x = zeros(0,2);
+                    sim_data.postfault.t = t_post_cl - t_start;
+                    sim_data.postfault.x = x_post_cl(:,1:2);
+
+                    figure(f1); hold on
+                    plot(delta_post_cl, y_post_cl, 'b-', 'LineWidth', 1.8);
+            end
             
             elseif limit_type == "VA"
             %%  =============virtuial admitance ===================
@@ -830,33 +932,56 @@ switch system
 
 
             % ===== 5. fault / postfault trajectory =====
-            
-            [t_fault_va, x_fault_va] = ode78(@(t,x) f_GFM_fault_cl_va(x), ...
-                [t_start, t_start + t_c], ...
-                [prefault_SEP(1); prefault_SEP(2)], ...
-                odeset('RelTol',1e-6));
-            
-            delta_fault_va = x_fault_va(:,1);
-            y_fault_va     = x_fault_va(:,2);
-            
             options_va = odeset('RelTol',1e-10);
-            [t_post_va, x_post_va] = ode78(@(t,x) f_GFM_normal_cl_va(x), ...
-                [t_fault_va(end), t_end], ...
-                x_fault_va(end,1:2), ...
-                options_va);
-            
-            delta_post_va = x_post_va(:,1);
-            y_post_va     = x_post_va(:,2);
-            
-            figure(f1)
-            hold on
-            
-            plot(delta_fault_va, y_fault_va, 'r-', 'LineWidth', 1.8);
 
-            plot(delta_post_va(1), y_post_va(1), 'k.', 'MarkerSize', 6);
-            plot(delta_fault_va(1), y_fault_va(1), 'k.', 'MarkerSize', 6);
+            switch fault_type
+                case {"voltage_sag","line_cut"}
+                    [t_fault_va, x_fault_va] = ode78(@(t,x) f_GFM_fault_cl_va(x), ...
+                        [t_start, t_start + t_c], ...
+                        [prefault_SEP(1); prefault_SEP(2)], ...
+                        odeset('RelTol',1e-6));
 
-            plot(delta_post_va, y_post_va, 'b-', 'LineWidth', 1.8);
+                    [t_post_va, x_post_va] = ode78(@(t,x) f_GFM_normal_cl_va(x), ...
+                        [t_fault_va(end), t_end], ...
+                        x_fault_va(end,1:2), options_va);
+
+                    sim_data.faulton.t = t_fault_va - t_start;
+                    sim_data.faulton.x = x_fault_va(:,1:2);
+                    sim_data.postfault.t = t_post_va - t_start;
+                    sim_data.postfault.x = x_post_va(:,1:2);
+
+                    delta_fault_va = x_fault_va(:,1);
+                    y_fault_va = x_fault_va(:,2);
+                    delta_post_va = x_post_va(:,1);
+                    y_post_va = x_post_va(:,2);
+
+                    figure(f1); hold on
+                    plot(delta_fault_va, y_fault_va, 'r-', 'LineWidth', 1.8);
+                    plot(delta_post_va(1), y_post_va(1), 'k.', 'MarkerSize', 6);
+                    plot(delta_fault_va(1), y_fault_va(1), 'k.', 'MarkerSize', 6);
+                    plot(delta_post_va, y_post_va, 'b-', 'LineWidth', 1.8);
+
+                case "phase_jump"
+                    x0_phase_jump = [prefault_SEP(1) + delta_jump_initial; ...
+                                     prefault_SEP(2)];
+                    [t_post_va, x_post_va] = ode78(@(t,x) f_GFM_normal_cl_va(x), ...
+                        [t_start, t_end], x0_phase_jump, options_va);
+
+                    t_fault_va = zeros(0,1);
+                    x_fault_va = zeros(0,2);
+                    delta_fault_va = zeros(0,1);
+                    y_fault_va = zeros(0,1);
+                    delta_post_va = x_post_va(:,1);
+                    y_post_va = x_post_va(:,2);
+
+                    sim_data.faulton.t = zeros(0,1);
+                    sim_data.faulton.x = zeros(0,2);
+                    sim_data.postfault.t = t_post_va - t_start;
+                    sim_data.postfault.x = x_post_va(:,1:2);
+
+                    figure(f1); hold on
+                    plot(delta_post_va, y_post_va, 'b-', 'LineWidth', 1.8);
+            end
             elseif limit_type == "VI"
                 %%  ============= virtual impedance current limit ===================
                 %% ===== 1. 找 equilibrium =====
@@ -968,34 +1093,56 @@ switch system
                 end
                 
                 %% ===== 5. fault / postfault trajectory =====
-                
-                [t_fault_vi, x_fault_vi] = ode78(@(t,x) f_GFM_fault_cl_vi(x), ...
-                    [t_start, t_start + t_c], ...
-                    [prefault_SEP(1); prefault_SEP(2)], ...
-                    odeset('RelTol',1e-6));
-                
-                delta_fault_vi = x_fault_vi(:,1);
-                y_fault_vi     = x_fault_vi(:,2);
-                
                 options_vi = odeset('RelTol',1e-10);
-                
-                [t_post_vi, x_post_vi] = ode78(@(t,x) f_GFM_normal_cl_vi(x), ...
-                    [t_fault_vi(end), t_end], ...
-                    x_fault_vi(end,1:2), ...
-                    options_vi);
-                
-                delta_post_vi = x_post_vi(:,1);
-                y_post_vi     = x_post_vi(:,2);
-                
-                figure(f1)
-                hold on
-                
-                plot(delta_fault_vi, y_fault_vi, 'r-', 'LineWidth', 1.8);
 
-                plot(delta_post_vi(1), y_post_vi(1), 'k.', 'MarkerSize', 6);
-                plot(delta_fault_vi(1), y_fault_vi(1), 'k.', 'MarkerSize', 6);
+                switch fault_type
+                    case {"voltage_sag","line_cut"}
+                        [t_fault_vi, x_fault_vi] = ode78(@(t,x) f_GFM_fault_cl_vi(x), ...
+                            [t_start, t_start + t_c], ...
+                            [prefault_SEP(1); prefault_SEP(2)], ...
+                            odeset('RelTol',1e-6));
 
-                plot(delta_post_vi, y_post_vi, 'b-', 'LineWidth', 1.8);
+                        [t_post_vi, x_post_vi] = ode78(@(t,x) f_GFM_normal_cl_vi(x), ...
+                            [t_fault_vi(end), t_end], ...
+                            x_fault_vi(end,1:2), options_vi);
+
+                        sim_data.faulton.t = t_fault_vi - t_start;
+                        sim_data.faulton.x = x_fault_vi(:,1:2);
+                        sim_data.postfault.t = t_post_vi - t_start;
+                        sim_data.postfault.x = x_post_vi(:,1:2);
+
+                        delta_fault_vi = x_fault_vi(:,1);
+                        y_fault_vi = x_fault_vi(:,2);
+                        delta_post_vi = x_post_vi(:,1);
+                        y_post_vi = x_post_vi(:,2);
+
+                        figure(f1); hold on
+                        plot(delta_fault_vi, y_fault_vi, 'r-', 'LineWidth', 1.8);
+                        plot(delta_post_vi(1), y_post_vi(1), 'k.', 'MarkerSize', 6);
+                        plot(delta_fault_vi(1), y_fault_vi(1), 'k.', 'MarkerSize', 6);
+                        plot(delta_post_vi, y_post_vi, 'b-', 'LineWidth', 1.8);
+
+                    case "phase_jump"
+                        x0_phase_jump = [prefault_SEP(1) + delta_jump_initial; ...
+                                         prefault_SEP(2)];
+                        [t_post_vi, x_post_vi] = ode78(@(t,x) f_GFM_normal_cl_vi(x), ...
+                            [t_start, t_end], x0_phase_jump, options_vi);
+
+                        t_fault_vi = zeros(0,1);
+                        x_fault_vi = zeros(0,2);
+                        delta_fault_vi = zeros(0,1);
+                        y_fault_vi = zeros(0,1);
+                        delta_post_vi = x_post_vi(:,1);
+                        y_post_vi = x_post_vi(:,2);
+
+                        sim_data.faulton.t = zeros(0,1);
+                        sim_data.faulton.x = zeros(0,2);
+                        sim_data.postfault.t = t_post_vi - t_start;
+                        sim_data.postfault.x = x_post_vi(:,1:2);
+
+                        figure(f1); hold on
+                        plot(delta_post_vi, y_post_vi, 'b-', 'LineWidth', 1.8);
+                end
                 elseif limit_type == "VA+QV"
                     %%  ============= virtual admittance + Q-V droop ===================
                     %% ===== 0. Qref: steady-state Q under original Vgfm =====
@@ -1255,6 +1402,110 @@ switch system
             end
 end
 
+%% ===================== unified time-domain data and figures =====================
+% Standard aliases retained in the workspace for direct reuse.
+t_prefault = sim_data.prefault.t;
+x_prefault = sim_data.prefault.x;
+t_faulton = sim_data.faulton.t;
+x_faulton = sim_data.faulton.x;
+t_postfault = sim_data.postfault.t;
+x_postfault = sim_data.postfault.x;
+
+if ~isempty(sim_data.postfault.t)
+    sim_data.all.t = [sim_data.prefault.t; ...
+                      sim_data.faulton.t; ...
+                      sim_data.postfault.t];
+    sim_data.all.x = [sim_data.prefault.x; ...
+                      sim_data.faulton.x; ...
+                      sim_data.postfault.x];
+    sim_data.all.stage = [repmat("prefault",size(sim_data.prefault.t)); ...
+                          repmat("faulton",size(sim_data.faulton.t)); ...
+                          repmat("postfault",size(sim_data.postfault.t))];
+
+       %% f2: phase-angle time-domain response
+    f2 = figure(2);
+    clf(f2);
+    set(f2,'Position',[680 558 1300 300]);
+    hold on;
+    grid on;
+    box on;
+
+    plot(sim_data.prefault.t, sim_data.prefault.x(:,1)*180/pi, ...
+        'k-', 'LineWidth', 1.5);
+    if ~isempty(sim_data.faulton.t)
+        plot(sim_data.faulton.t, sim_data.faulton.x(:,1)*180/pi, ...
+            'k-', 'LineWidth', 1.8);
+    end
+    if fault_type == "phase_jump"
+        % Show the instantaneous coordinate jump at t = 0.
+        plot([0 0], ...
+            [sim_data.prefault.x(end,1), sim_data.postfault.x(1,1)]*180/pi, ...
+            'k-', 'LineWidth', 1.8);
+    end
+    plot(sim_data.postfault.t, sim_data.postfault.x(:,1)*180/pi, ...
+        'k-', 'LineWidth', 1.8);
+
+    xlim([-t_start, t_end-t_start]);
+    xticks(-t_start:0.2:t_end-t_start);
+    ylim('auto');
+    drawnow;
+    yl = ylim;
+
+    if fault_type == "voltage_sag"
+        trange = [0, t_c, t_c, 0];
+        thetarange = [yl(1), yl(1), yl(2), yl(2)];
+        h_fault_area = fill(trange, thetarange, [.9805 .7031 .6797], ...
+            'LineStyle', 'none', 'FaceAlpha', 0.5);
+        uistack(h_fault_area,'bottom');
+        ylim(yl);
+    end
+
+    ylabel('$\delta$ ($^\circ$)','Interpreter','latex');
+    set(gca,'TickLabelInterpreter','latex','FontSize',20);
+
+    %% f3: second-state time-domain response
+    f3 = figure(3);
+    clf(f3);
+    set(f3,'Position',[680 208 1300 300]);
+    hold on;
+    grid on;
+    box on;
+
+    plot(sim_data.prefault.t, sim_data.prefault.x(:,2), ...
+        'k-', 'LineWidth', 1.5);
+    if ~isempty(sim_data.faulton.t)
+        plot(sim_data.faulton.t, sim_data.faulton.x(:,2), ...
+            'k-', 'LineWidth', 1.8);
+    end
+    plot(sim_data.postfault.t, sim_data.postfault.x(:,2), ...
+        'k-', 'LineWidth', 1.8);
+
+    xlim([-t_start, t_end-t_start]);
+    xticks(-t_start:0.2:t_end-t_start);
+    ylim('auto');
+    drawnow;
+    yl = ylim;
+
+    if fault_type == "voltage_sag"
+        trange = [0, t_c, t_c, 0];
+        yrange = [yl(1), yl(1), yl(2), yl(2)];
+        h_fault_area = fill(trange, yrange, [.9805 .7031 .6797], ...
+            'LineStyle', 'none', 'FaceAlpha', 0.5);
+        uistack(h_fault_area,'bottom');
+        ylim(yl);
+    end
+
+    if system == "GFM"
+        ylabel('$\omega$ (pu)','Interpreter','latex');
+    else
+        ylabel('$\Delta v_{\mathrm{dc}}^2$ (pu)','Interpreter','latex');
+    end
+    set(gca,'TickLabelInterpreter','latex','FontSize',20);
+else
+    warning(['No unified trajectory was generated for system = %s, ' ...
+             'limit_type = %s, fault_type = %s.'], ...
+             system, limit_type, fault_type);
+end
 
 %% function
 function yes = isnewxep(ep_set,xep,torr)
