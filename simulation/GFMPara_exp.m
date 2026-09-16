@@ -9,15 +9,15 @@ Tc = 1/f_switching;
 
 %% Base values
 Wbase = 2*pi*50;    % (rad/s)
-Vbase = 1;
-Sbase = 1;
+Vbase = 89.2;   %L-L RMS
+Sbase = 1.5e3;
 Ibase = Sbase/Vbase;
 Zbase = Vbase/Ibase;
 Ybase = 1/Zbase;
 
 %% AC filter parameters
 Lf = 0.0592;
-Cf = 0.0083*3; 
+Cf = 0.0083; 
 Lc = 1e-9;
 %%
 Vdc_ref = 2.5;
@@ -52,7 +52,7 @@ switch fault_type
     %voltage sag
     t_sim_start = 2;
     t0_sag = t_sim_start +t_start;
-    dt_sag = t_c;
+    dt_sag = t_c;%+0.005
     v_sag= Ug_fault;
     case "line_cut"
     %line cutting

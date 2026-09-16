@@ -37,3 +37,5 @@ Rg1+Rg4
 
 
 2*Rg4+Rg2
+
+R_charge = 50/Zbase  
