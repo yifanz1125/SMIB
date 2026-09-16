@@ -1,6 +1,6 @@
 %%
 VSC.LCL.Lf = Lf/Wbase;
-VSC.LCL.rlf = 0.5;
+VSC.LCL.rlf = 0.-1;
 VSC.LCL.Cf = Cf/Wbase;
 VSC.LCL.rcf = 1e-8;
 VSC.LCL.rca = 1e6;
@@ -18,7 +18,7 @@ n_tt=size(f_tt,2);
 fbd_L = min(f_pos);
 fbd_H = max(f_pos);
 VSC.Ctrl.Ts = Tc/2;
-w_i_GFL1 = 1300*2*pi;
+w_i_GFL1 = 800*2*pi;
 
 %% Cf
 Tf.LCL.Zcf=1./(s+1i*Wbase)/VSC.LCL.Cf+VSC.LCL.rcf;
