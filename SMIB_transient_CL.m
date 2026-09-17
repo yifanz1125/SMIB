@@ -74,7 +74,7 @@ switch fault_type
         R1 = 0.01;
         Xgg = (Xg - X1)*2;
         Rgg = (Rg - R1)*2;
-        t_c = 0.078;%0.08
+        t_c = 0.078;%0.08  0.14
     case "line_cut"
     %fault line cut 
         t_c = 0.06;

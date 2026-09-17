@@ -33,10 +33,10 @@ m_gfm = 1/D;
 w_droop = D/J;  
 
 % Current loop
-w_i_GFM = 1500*2*pi;
+w_i_GFM = 1200*2*pi;
 
 % Voltage loop
-w_v_GFM = 500 *2*pi;
+w_v_GFM = 250 *2*pi;
 Scale_ki_v = 20;
 
 
