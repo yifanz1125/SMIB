@@ -33,9 +33,13 @@ Lg1+Lg4
 Rg1+Rg4
 
 
-2*Lg4+Lg2
+2*Lg4+Lg2   %7mH
 
 
 2*Rg4+Rg2
+
+Lg4+Lg2  %5mH
+
+Rg4+Rg2
 
 R_charge = 50/Zbase  

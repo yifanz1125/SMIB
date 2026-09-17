@@ -5,12 +5,19 @@ t_start = 0.2;
 
 %grid
 
-Xg = 0.431;
-Rg = 0.05;%0.08
+Xg = 0.431;  %0.431  0.307
+Rg = 0.05;%0.05  0.0338
 Ug = 1;
 Ws = 2*pi*50; 
 Lg= Xg/Ws;
 W_g = 0;
+
+% EVA normal-operation virtual impedance. In the EVA model, Xg and Rg
+% above are the physical grid impedance only. During current limiting,
+% the magnitude of Rv0+jXv0 is increased while its actual initial
+% impedance angle is retained; no fixed R/X ratio is imposed.
+Xv0 = 0.124;
+Rv0 = 0;%0.0162;
 
 
 %GFM
@@ -40,25 +47,40 @@ Ilim = 1.7;  %1.7
 
 kq = 0;
 
-fsep = @(delta) Rg*(Vgfm^2 - Vgfm*Ug*cos(delta))/(Rg^2 + Xg^2) ...
-           + Xg*Vgfm*Ug*sin(delta)/(Rg^2 + Xg^2) ...
-           - Pm;
-
-deltas = fsolve(fsep, 0);
-
-Qref1 = Xg*(Vgfm^2 - Vgfm*Ug*cos(deltas))/(Rg^2+Xg^2) ...
-      - Rg*Vgfm*Ug*sin(deltas)/(Rg^2+Xg^2);
-
-
-
 %system
 global system;
 global fault_type; % "voltage_sag", "phase_jump" ("line_cut" retained)
 global limit_type
 fault_type = "voltage_sag"; %"voltage_sag";%"line_cut";%"phase_jump";
-limit_type = "cir";   %"cir"   "VA" "VI"  "VA+QV"
+limit_type = "cir";   %"cir" "VA" "EVA" "VI" "VA+QV"
 system = "GFM";  %GFMQ   VOC
 model = "original";% "original"
+
+% Normal-operation equilibrium equation. Only EVA includes the nominal
+% virtual impedance; all existing modes retain the original expression.
+if system == "GFM" && limit_type == "EVA"
+    Rv_sep = Rv0;
+    Xv_sep = Xv0;
+else
+    Rv_sep = 0;
+    Xv_sep = 0;
+end
+Rsum_sep = Rg + Rv_sep;
+Xsum_sep = Xg + Xv_sep;
+Zsum2_sep = Rsum_sep^2 + Xsum_sep^2;
+
+% PCC/POC active power: the Rg loss belongs to the physical grid branch,
+% whereas Rv_sep is located inside the converter virtual impedance.
+fsep = @(delta) ( ...
+      Xsum_sep*Vgfm*Ug*sin(delta) ...
+    + Rg*(Vgfm^2 - Vgfm*Ug*cos(delta)) ...
+    + Rv_sep*(Vgfm*Ug*cos(delta) - Ug^2)) / Zsum2_sep ...
+    - Pm;
+
+deltas = fsolve(fsep, 0);
+
+Qref1 = Xg*(Vgfm^2 - Vgfm*Ug*cos(deltas))/(Rg^2+Xg^2) ...
+      - Rg*Vgfm*Ug*sin(deltas)/(Rg^2+Xg^2);
 
 % Grid-voltage angle jump. A positive value means that the grid-voltage
 % angle jumps forward; because delta = theta_GFM/VFM - theta_grid, the
@@ -74,7 +96,7 @@ switch fault_type
         R1 = 0.01;
         Xgg = (Xg - X1)*2;
         Rgg = (Rg - R1)*2;
-        t_c = 0.078;%0.08  0.14
+        t_c = 0.078;%0.08   0.14
     case "line_cut"
     %fault line cut 
         t_c = 0.06;
@@ -200,7 +222,7 @@ for mm = 1:length(ep_set)
 end
 
 %% Unified time-domain data container
-% All five current-limiting cases and both requested disturbance types use
+% All supported current-limiting cases and both requested disturbance types use
 % this same format. The complete displayed interval is
 % [-t_start, t_end-t_start], whose duration is exactly t_end.
 sim_data = struct;
@@ -982,6 +1004,163 @@ switch system
                     figure(f1); hold on
                     plot(delta_post_va, y_post_va, 'b-', 'LineWidth', 1.8);
             end
+            elseif limit_type == "EVA"
+                %% ===== enhanced virtual-admittance current limiting =====
+                % In EVA, Rg+jXg is the physical grid impedance and
+                % Rv0+jXv0 is present in normal operation. Once the
+                % unconstrained current exceeds Ilim, its magnitude is
+                % increased while retaining the angle set by Rv0 and Xv0.
+
+                %% ===== 1. Find EVA equilibria =====
+                torralence = 1e-2;
+                mm = 1;
+                ep_set_eva = [];
+
+                options_eva = optimoptions('fsolve', ...
+                    'FunctionTolerance',1e-10, ...
+                    'MaxIterations',100000, ...
+                    'OptimalityTolerance',1e-10, ...
+                    'Display','off');
+
+                for n = 1:length(x_set(1,:))
+                    xep0 = x_set(:,n);
+                    [xep,ferr,exitflag] = fsolve(@f_GFM_normal_cl_eva, ...
+                        xep0, options_eva);
+
+                    if exitflag > 0 && maxabs(ferr) < torralence
+                        if isnewxep(ep_set_eva,xep,torralence)
+                            A = numerical_jacobian(@f_GFM_normal_cl_eva, xep);
+                            [V,Lambda] = eig(A);
+                            Lambda = diag(Lambda);
+                            sig = sign(sign(real(Lambda))+0.1);
+                            sig = (sig + 1)/2;
+                            flag = sum(sig);
+                            v = V(:,~sig);
+
+                            ep_set_eva(mm).xep = xep;
+                            ep_set_eva(mm).A = A;
+                            ep_set_eva(mm).Lambda = Lambda;
+                            ep_set_eva(mm).V = V;
+                            ep_set_eva(mm).v = v;
+                            ep_set_eva(mm).flag = flag;
+                            mm = mm + 1;
+                        end
+                    end
+                end
+
+                %% ===== 2. Plot EVA stable manifolds =====
+                ep_set_ext_eva = ep_set_eva;
+                figure(f1)
+                hold on
+
+                for mm = 1:length(ep_set_ext_eva)
+                    xep = ep_set_ext_eva(mm).xep;
+                    if ep_set_ext_eva(mm).flag == 1
+                        stable_idx = find(real(ep_set_ext_eva(mm).Lambda) < 0);
+                        v = ep_set_ext_eva(mm).V(:,stable_idx);
+
+                        if ~isempty(v)
+                            if size(v,2) > 1
+                                v = v(:,1);
+                            end
+                            v = real(v);
+                            v = v/norm(v);
+
+                            perturb = 1e-4;
+                            [~,x_p] = ode78(@(t,x)-f_GFM_normal_cl_eva(x), ...
+                                [0,2], xep + perturb*v, ...
+                                odeset('RelTol',1e-10));
+                            [~,x_n] = ode78(@(t,x)-f_GFM_normal_cl_eva(x), ...
+                                [0,2], xep - perturb*v, ...
+                                odeset('RelTol',1e-10));
+
+                            x_all = [flip(x_n,1); x_p];
+                            plot(x_all(:,1),x_all(:,2),'k-', ...
+                                'LineWidth',1.5);
+                        end
+                    end
+                end
+
+                %% ===== 3. EVA UEP and limiting boundary =====
+                delta_uep_eva = [];
+                for k = 1:length(ep_set_eva)
+                    if ep_set_eva(k).flag == 1
+                        delta_uep_eva = ep_set_eva(k).xep(1);
+                        break;
+                    end
+                end
+
+                yl = ylim;
+                if ~isempty(delta_uep_eva)
+                    plot([delta_uep_eva delta_uep_eva],yl, ...
+                        'm-','LineWidth',2);
+                end
+
+                % Boundary is calculated from the normal total impedance,
+                % including the nominal virtual impedance Rv0+jXv0.
+                arg_eva = (Vgfm^2 + Ug^2 ...
+                    - Ilim^2*((Rg+Rv0)^2 + (Xg+Xv0)^2)) ...
+                    /(2*Vgfm*Ug);
+                if abs(arg_eva) <= 1
+                    deltac_eva = acos(arg_eva);
+                    plot([deltac_eva deltac_eva],yl,'g-','LineWidth',2);
+                    plot([-deltac_eva -deltac_eva],yl,'g-','LineWidth',2);
+                else
+                    warning(['No real EVA limiting boundary for the current ' ...
+                        'parameters (acos argument = %.6g).'],arg_eva);
+                end
+
+                %% ===== 4. Fault and postfault trajectory =====
+                options_eva_ode = odeset('RelTol',1e-10);
+
+                switch fault_type
+                    case "voltage_sag"
+                        [t_fault_eva,x_fault_eva] = ode78( ...
+                            @(t,x) f_GFM_fault_cl_eva(x), ...
+                            [t_start,t_start+t_c], ...
+                            [prefault_SEP(1);prefault_SEP(2)], ...
+                            odeset('RelTol',1e-6));
+
+                        [t_post_eva,x_post_eva] = ode78( ...
+                            @(t,x) f_GFM_normal_cl_eva(x), ...
+                            [t_fault_eva(end),t_end], ...
+                            x_fault_eva(end,1:2),options_eva_ode);
+
+                        sim_data.faulton.t = t_fault_eva - t_start;
+                        sim_data.faulton.x = x_fault_eva(:,1:2);
+                        sim_data.postfault.t = t_post_eva - t_start;
+                        sim_data.postfault.x = x_post_eva(:,1:2);
+
+                        figure(f1); hold on
+                        plot(x_fault_eva(:,1),x_fault_eva(:,2), ...
+                            'r-','LineWidth',1.8);
+                        plot(x_post_eva(1,1),x_post_eva(1,2), ...
+                            'k.','MarkerSize',6);
+                        plot(x_fault_eva(1,1),x_fault_eva(1,2), ...
+                            'k.','MarkerSize',6);
+                        plot(x_post_eva(:,1),x_post_eva(:,2), ...
+                            'b-','LineWidth',1.8);
+
+                    case "phase_jump"
+                        x0_phase_jump = [prefault_SEP(1)+delta_jump_initial; ...
+                                         prefault_SEP(2)];
+                        [t_post_eva,x_post_eva] = ode78( ...
+                            @(t,x) f_GFM_normal_cl_eva(x), ...
+                            [t_start,t_end],x0_phase_jump,options_eva_ode);
+
+                        sim_data.faulton.t = zeros(0,1);
+                        sim_data.faulton.x = zeros(0,2);
+                        sim_data.postfault.t = t_post_eva - t_start;
+                        sim_data.postfault.x = x_post_eva(:,1:2);
+
+                        figure(f1); hold on
+                        plot(x_post_eva(:,1),x_post_eva(:,2), ...
+                            'b-','LineWidth',1.8);
+
+                    otherwise
+                        error(['EVA currently supports fault_type = ' ...
+                            '"voltage_sag" or "phase_jump" only.']);
+                end
             elseif limit_type == "VI"
                 %%  ============= virtual impedance current limit ===================
                 %% ===== 1. 找 equilibrium =====
