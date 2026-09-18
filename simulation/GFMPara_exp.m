@@ -24,10 +24,10 @@ Vdc_ref = 2.5;
 
 
 %% Rated line impedance1
-Xg; 
-Rg;
-Xv0;
-Rv0;
+% Xg = 0.307; 
+% Rg = 0.0338;
+% Xv0 = 0.124;
+% Rv0 = 0.0162;
 
 %% Grid-forming inverter
 E = Vgfm;
@@ -78,10 +78,16 @@ switch fault_type
     %voltage sag
     t_sim_start = 2;
     t0_sag = t_sim_start +t_start;
+    t0_jump = t_sim_start + t_end + 1;
     dt_sag = t_c;%+0.005
     v_sag= Ug_fault;
     case "line_cut"
     %line cutting
+    case "phase_jump"
+    t_sim_start = 2;
+    t0_sag = t_sim_start + t_end + 1;
+    t0_jump = t_sim_start +t_start;
+    jump_value = -delta_jump_initial;  
 end
 
 

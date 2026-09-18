@@ -96,7 +96,7 @@ switch fault_type
         R1 = 0.01;
         Xgg = (Xg - X1)*2;
         Rgg = (Rg - R1)*2;
-        t_c = 0.118;%0.08   0.14
+        t_c = 0.118;
     case "line_cut"
     %fault line cut 
         t_c = 0.06;
@@ -118,7 +118,7 @@ switch fault_type
         Ug_fault_angle = angle(Ug_fault);
         Ug_fault= abs(Ug_fault);
     case "phase_jump"
-        Ug_phase_jump = 50*pi/180;   % grid-voltage phase jump (rad)
+        Ug_phase_jump = 60*pi/180;   % grid-voltage phase jump (rad)
         delta_jump_initial = -Ug_phase_jump;
         t_c = 0;                     % no fault-on interval
     otherwise

@@ -74,10 +74,16 @@ switch fault_type
     %voltage sag
     t_sim_start = 2;
     t0_sag = t_sim_start +t_start;
-    dt_sag = t_c;
+    t0_jump = t_sim_start + t_end + 1;
+    dt_sag = t_c;%+0.005
     v_sag= Ug_fault;
     case "line_cut"
     %line cutting
+    case "phase_jump"
+    t_sim_start = 2;
+    t0_sag = t_sim_start + t_end + 1;
+    t0_jump = t_sim_start +t_start;
+    jump_value = delta_jump_initial / 180*pi;  
 end
 
 
