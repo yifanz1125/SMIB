@@ -24,7 +24,10 @@ Vdc_ref = 2.5;
 
 
 %% Rated line impedance1
-
+Xg; 
+Rg;
+Xv0;
+Rv0;
 
 %% Grid-forming inverter
 E = Vgfm;
@@ -42,6 +45,29 @@ Scale_ki_v = 20;
 
 f_notch  = 50;   % Hz
 BW_notch = 15;   % Hz
+
+%% EVA capacitor-voltage feedback: second-order LPF
+
+EVA_LPF2_f     = 30;              % -3 dB bandwidth (Hz)
+EVA_LPF2_w     = 2*pi*EVA_LPF2_f; % rad/s
+EVA_LPF2_zeta  = 1/sqrt(2);       % Butterworth damping ratio
+EVA_LPF2_Ts    = Tc;              % change to Tc later if required
+
+% Prewarped Tustin transformation
+EVA_LPF2_k  = tan(EVA_LPF2_w*EVA_LPF2_Ts/2);
+EVA_LPF2_a0 = 1 ...
+            + 2*EVA_LPF2_zeta*EVA_LPF2_k ...
+            + EVA_LPF2_k^2;
+
+% Coefficients in descending powers of z
+EVA_LPF2_num = [EVA_LPF2_k^2, ...
+                2*EVA_LPF2_k^2, ...
+                EVA_LPF2_k^2] / EVA_LPF2_a0;
+
+EVA_LPF2_den = [1, ...
+                2*(EVA_LPF2_k^2-1)/EVA_LPF2_a0, ...
+                (1-2*EVA_LPF2_zeta*EVA_LPF2_k ...
+                +EVA_LPF2_k^2)/EVA_LPF2_a0];
 
 
 

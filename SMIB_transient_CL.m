@@ -5,8 +5,8 @@ t_start = 0.2;
 
 %grid
 
-Xg = 0.431;  %0.431  0.307
-Rg = 0.05;%0.05  0.0338
+Xg = 0.307;  %0.431  0.307
+Rg = 0.0338;%0.05  0.0338
 Ug = 1;
 Ws = 2*pi*50; 
 Lg= Xg/Ws;
@@ -17,7 +17,7 @@ W_g = 0;
 % the magnitude of Rv0+jXv0 is increased while its actual initial
 % impedance angle is retained; no fixed R/X ratio is imposed.
 Xv0 = 0.124;
-Rv0 = 0;%0.0162;
+Rv0 = 0.0162;%0.0162;
 
 
 %GFM
@@ -52,7 +52,7 @@ global system;
 global fault_type; % "voltage_sag", "phase_jump" ("line_cut" retained)
 global limit_type
 fault_type = "voltage_sag"; %"voltage_sag";%"line_cut";%"phase_jump";
-limit_type = "cir";   %"cir" "VA" "EVA" "VI" "VA+QV"
+limit_type = "EVA";   %"cir" "VA" "EVA" "VI" "VA+QV"
 system = "GFM";  %GFMQ   VOC
 model = "original";% "original"
 
@@ -96,7 +96,7 @@ switch fault_type
         R1 = 0.01;
         Xgg = (Xg - X1)*2;
         Rgg = (Rg - R1)*2;
-        t_c = 0.078;%0.08   0.14
+        t_c = 0.118;%0.08   0.14
     case "line_cut"
     %fault line cut 
         t_c = 0.06;
