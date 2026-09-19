@@ -4,20 +4,15 @@ t_end = 2;
 t_start = 0.2;
 
 %grid
-
-Xg = 0.307;  %0.431  0.307
-Rg = 0.0338;%0.05  0.0338
 Ug = 1;
 Ws = 2*pi*50; 
-Lg= Xg/Ws;
 W_g = 0;
 
 % EVA normal-operation virtual impedance. In the EVA model, Xg and Rg
 % above are the physical grid impedance only. During current limiting,
 % the magnitude of Rv0+jXv0 is increased while its actual initial
 % impedance angle is retained; no fixed R/X ratio is imposed.
-Xv0 = 0.124;
-Rv0 = 0.0162;%0.0162;
+
 
 
 %GFM
@@ -28,7 +23,6 @@ D = 15; %1/m_gfm;
 J = 3;  %
 Vgfm = 1;
 Pm = 1;
-Kvi = 1;
 
 
 %VFM
@@ -41,9 +35,6 @@ Vvfm = 1;
 Pin = 1;
 Phi = -pi/4;
 
-
-
-Ilim = 1.7;  %1.7
 
 kq = 0;
 
@@ -58,13 +49,41 @@ model = "original";% "original"
 
 % Normal-operation equilibrium equation. Only EVA includes the nominal
 % virtual impedance; all existing modes retain the original expression.
-if system == "GFM" && limit_type == "EVA"
+if limit_type == "EVA"
+    Xg = 0.307;  
+    Rg = 0.0338;
+    Lg= Xg/Ws;
+    Xv0 = 0.124;
+    Rv0 = 0.0162;
     Rv_sep = Rv0;
     Xv_sep = Xv0;
-else
+    Ilim = 1.7; 
+elseif limit_type == "cir"
+    Xg = 0.431;  
+    Rg = 0.05;
     Rv_sep = 0;
     Xv_sep = 0;
+    Ilim = 1.7;  
+elseif limit_type == "VI"
+    Xg = 0.431;  
+    Rg = 0.05;
+    Rv_sep = 0;
+    Xv_sep = 0;
+    Ilim = 1.2;  
+    %threshold VI parameter
+    Kvi = 2;
+    sigma = 8;
+else
+    Xg = 0.431;  
+    Rg = 0.05;
+    Rv_sep = 0;
+    Xv_sep = 0;
+    Ilim = 1.7;  %1.7   1.2
 end
+
+
+
+
 Rsum_sep = Rg + Rv_sep;
 Xsum_sep = Xg + Xv_sep;
 Zsum2_sep = Rsum_sep^2 + Xsum_sep^2;
@@ -96,7 +115,7 @@ switch fault_type
         R1 = 0.01;
         Xgg = (Xg - X1)*2;
         Rgg = (Rg - R1)*2;
-        t_c = 0.118;
+        t_c = 0.118;%0.118   
     case "line_cut"
     %fault line cut 
         t_c = 0.06;
@@ -118,7 +137,7 @@ switch fault_type
         Ug_fault_angle = angle(Ug_fault);
         Ug_fault= abs(Ug_fault);
     case "phase_jump"
-        Ug_phase_jump = 60*pi/180;   % grid-voltage phase jump (rad)
+        Ug_phase_jump = 43*pi/180;   % grid-voltage phase jump (rad)      43    65    -74  
         delta_jump_initial = -Ug_phase_jump;
         t_c = 0;                     % no fault-on interval
     otherwise

@@ -35,7 +35,7 @@ if any(~isfinite(fault_time(:,1))) || any(diff(fault_time(:,1)) < 0)
     error('fault_time(:,1) must contain finite, nondecreasing timestamps.');
 end
 
-%% ===================== Locate the first rising edge =====================
+%% ===================== Locate the last rising edge =====================
 fault_signal = fault_time(:,2);
 valid_fault_signal = isfinite(fault_signal);
 
@@ -55,7 +55,7 @@ fault_threshold = (fault_low + fault_high_level)/2;
 fault_logic = fault_signal > fault_threshold;
 
 idx_fault_rise = find(~fault_logic(1:end-1) & fault_logic(2:end), ...
-                      1, 'first') + 1;
+                      1, 'last') + 1;
 
 if isempty(idx_fault_rise)
     error('No rising edge was found in fault_time(:,2).');

@@ -48,7 +48,7 @@ BW_notch = 15;   % Hz
 
 %% EVA capacitor-voltage feedback: second-order LPF
 
-EVA_LPF2_f     = 30;              % -3 dB bandwidth (Hz)
+EVA_LPF2_f     = 20;              % -3 dB bandwidth (Hz)
 EVA_LPF2_w     = 2*pi*EVA_LPF2_f; % rad/s
 EVA_LPF2_zeta  = 1/sqrt(2);       % Butterworth damping ratio
 EVA_LPF2_Ts    = Tc;              % change to Tc later if required
@@ -81,6 +81,7 @@ switch fault_type
     t0_jump = t_sim_start + t_end + 1;
     dt_sag = t_c;%+0.005
     v_sag= Ug_fault;
+    jump_value = 0;
     case "line_cut"
     %line cutting
     case "phase_jump"

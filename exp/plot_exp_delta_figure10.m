@@ -5,10 +5,11 @@
 %   t_start    : displayed prefault duration
 %   t_end      : total displayed duration
 %
-% The first rising edge of fault_time(:,2) is defined as t = 0. The phase
+% The last rising edge of fault_time(:,2) is defined as t = 0. The phase
 % angle is converted from radians to degrees and wrapped into [0, 360).
 t_start = 0.4;
-t_c = 0.081;
+t_c = 0;
+angle_wrap_mode = '-180_180';      % '0_360' 或 '-180_180'
 %% ===================== Input checks =====================
 if ~isnumeric(delta) || size(delta,2) < 2 || isempty(delta)
     error('delta must be a nonempty numeric N-by-2 array.');
@@ -53,7 +54,7 @@ end
 fault_threshold = (fault_low + fault_high)/2;
 fault_logic = fault_signal > fault_threshold;
 idx_fault_rise = find(~fault_logic(1:end-1) & fault_logic(2:end), ...
-                      1, 'first') + 1;
+                      1, 'last') + 1;
 
 if isempty(idx_fault_rise)
     error('No rising edge was found in fault_time(:,2).');
@@ -83,7 +84,23 @@ delta_extracted = delta(idx_delta_window,1:2);
 
 % Unified format: [time relative to fault start, phase angle in degrees].
 delta_extracted(:,1) = delta_extracted(:,1) - fault_start_time;
-delta_extracted(:,2) = mod(delta_extracted(:,2)*180/pi, 360);
+delta_deg = delta_extracted(:,2)*180/pi;
+
+switch angle_wrap_mode
+    case '0_360'
+        delta_extracted(:,2) = mod(delta_deg,360);
+        angle_lower_limit = 0;
+        angle_upper_limit = 360;
+
+    case '-180_180'
+        delta_extracted(:,2) = mod(delta_deg+180,360)-180;
+        angle_lower_limit = -180;
+        angle_upper_limit = 180;
+
+    otherwise
+        error(['angle_wrap_mode must be either ''0_360'' ' ...
+               'or ''-180_180''.']);
+end
 
 valid_delta = isfinite(delta_extracted(:,2));
 if ~any(valid_delta)
@@ -118,12 +135,12 @@ else
     y_margin = 5;
 end
 
-y_lower = max(0, y_data_min-y_margin);
-y_upper = min(360, y_data_max+y_margin);
+y_lower = max(angle_lower_limit, y_data_min-y_margin);
+y_upper = min(angle_upper_limit, y_data_max+y_margin);
 
 if y_upper <= y_lower
-    y_lower = max(0, y_data_min-5);
-    y_upper = min(360, y_data_max+5);
+    y_lower = max(angle_lower_limit, y_data_min-5);
+    y_upper = min(angle_upper_limit, y_data_max+5);
 end
 
 ylim([y_lower, y_upper]);
@@ -133,8 +150,9 @@ ax = gca;
 % Only the complete 0--360-degree range is treated specially. For every
 % other range, MATLAB selects the y ticks automatically according to the
 % axes height and font size.
-if y_lower == 0 && y_upper == 360
-    yticks(ax, 0:90:360);
+% Use 90-degree ticks when the complete angular range is displayed.
+if y_lower == angle_lower_limit && y_upper == angle_upper_limit
+    yticks(ax, angle_lower_limit:90:angle_upper_limit);
 else
     ax.YTickMode = 'auto';
 end
